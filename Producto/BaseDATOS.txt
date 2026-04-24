@@ -1,1 +1,192 @@
 
+-- TABLA: ROL
+
+CREATE TABLE ROL (
+    id_rol NUMBER PRIMARY KEY,
+    nombre VARCHAR2(50) NOT NULL,
+    descripcion VARCHAR2(255)
+);
+
+
+-- TABLA: ORGANIZACION
+
+CREATE TABLE ORGANIZACION (
+    id_organizacion NUMBER PRIMARY KEY,
+    nombre VARCHAR2(100) NOT NULL,
+    rut VARCHAR2(20),
+    dv VARCHAR2(5),
+    email_contacto VARCHAR2(100),
+    estado VARCHAR2(20),
+    fecha_creacion DATE
+);
+
+
+-- TABLA: USUARIO
+
+CREATE TABLE USUARIO (
+    id_usuario NUMBER PRIMARY KEY,
+    nombre VARCHAR2(50) NOT NULL,
+    apellido_p VARCHAR2(50) NOT NULL,
+    apellido_m VARCHAR2(50),
+    email_usuario VARCHAR2(100) UNIQUE NOT NULL,
+    password VARCHAR2(255) NOT NULL,
+    intentos_fallidos NUMBER DEFAULT 0,
+    bloqueado CHAR(1) DEFAULT 'N',
+    ultimo_login DATE,
+    fecha_creacion DATE,
+
+    id_rol NUMBER,
+    id_organizacion NUMBER,
+
+    CONSTRAINT fk_usuario_rol FOREIGN KEY (id_rol)
+        REFERENCES ROL(id_rol),
+
+    CONSTRAINT fk_usuario_org FOREIGN KEY (id_organizacion)
+        REFERENCES ORGANIZACION(id_organizacion)
+);
+
+
+-- TABLA: PROCESO
+
+CREATE TABLE PROCESO (
+    id_proceso NUMBER PRIMARY KEY,
+    nombre VARCHAR2(100) NOT NULL,
+    descripcion_proceso VARCHAR2(255),
+    estado_proceso VARCHAR2(50),
+    fecha_inicio DATE,
+    fecha_limite DATE,
+    fecha_creacion DATE,
+
+    id_organizacion NUMBER,
+
+    CONSTRAINT fk_proceso_org FOREIGN KEY (id_organizacion)
+        REFERENCES ORGANIZACION(id_organizacion)
+);
+
+
+-- TABLA: TAREA
+
+CREATE TABLE TAREA (
+    id_tarea NUMBER PRIMARY KEY,
+    nombre_tarea VARCHAR2(100) NOT NULL,
+    descripcion_t VARCHAR2(255),
+    estado_t VARCHAR2(50),
+    orden_t NUMBER,
+    fecha_limite_s DATE,
+    fecha_completada DATE,
+    fecha_creacion_t DATE,
+
+    id_proceso NUMBER,
+    id_usuario NUMBER,
+
+    CONSTRAINT fk_tarea_proceso FOREIGN KEY (id_proceso)
+        REFERENCES PROCESO(id_proceso),
+
+    CONSTRAINT fk_tarea_usuario FOREIGN KEY (id_usuario)
+        REFERENCES USUARIO(id_usuario)
+);
+
+
+-- TABLA: DEPENDENCIA_TAREA
+
+CREATE TABLE DEPENDENCIA_TAREA (
+    id_dependencia NUMBER PRIMARY KEY,
+
+    id_tarea NUMBER,
+    id_tarea_dependiente NUMBER,
+
+    CONSTRAINT fk_dep_tarea FOREIGN KEY (id_tarea)
+        REFERENCES TAREA(id_tarea),
+
+    CONSTRAINT fk_dep_tarea_dep FOREIGN KEY (id_tarea_dependiente)
+        REFERENCES TAREA(id_tarea)
+);
+
+
+-- TABLA: DOCUMENTO
+
+CREATE TABLE DOCUMENTO (
+    id_documento NUMBER PRIMARY KEY,
+    nombre_archivo VARCHAR2(100),
+    s3_key VARCHAR2(255),
+    tipo_archivo VARCHAR2(50),
+    tamano_bytes NUMBER,
+    version NUMBER,
+    fecha_creacion_doc DATE,
+
+    id_tarea NUMBER,
+    id_usuario NUMBER,
+
+    CONSTRAINT fk_doc_tarea FOREIGN KEY (id_tarea)
+        REFERENCES TAREA(id_tarea),
+
+    CONSTRAINT fk_doc_usuario FOREIGN KEY (id_usuario)
+        REFERENCES USUARIO(id_usuario)
+);
+
+
+-- TABLA: REPORTE
+
+CREATE TABLE REPORTE (
+    id_reporte NUMBER PRIMARY KEY,
+    nombre VARCHAR2(100),
+    formato_reporte VARCHAR2(20),
+    s3_key VARCHAR2(255),
+    generado_en DATE,
+
+    id_proceso NUMBER,
+
+    CONSTRAINT fk_reporte_proceso FOREIGN KEY (id_proceso)
+        REFERENCES PROCESO(id_proceso)
+);
+
+
+-- TABLA: NOTIFICACION
+
+CREATE TABLE NOTIFICACION (
+    id_notificacion NUMBER PRIMARY KEY,
+    tipo_noti VARCHAR2(50),
+    mensaje_noti VARCHAR2(255),
+    noti_leida CHAR(1) DEFAULT 'N',
+    fecha_envio DATE,
+    fecha_lectura DATE,
+
+    id_usuario NUMBER,
+
+    CONSTRAINT fk_noti_usuario FOREIGN KEY (id_usuario)
+        REFERENCES USUARIO(id_usuario)
+);
+
+
+-- TABLA: LOG_ACTIVIDAD
+
+CREATE TABLE LOG_ACTIVIDAD (
+    id_log NUMBER PRIMARY KEY,
+    accion_log VARCHAR2(100),
+    modulo_log VARCHAR2(100),
+    detalle_log VARCHAR2(255),
+    ip_log VARCHAR2(50),
+    fecha_hora DATE,
+
+    id_usuario NUMBER,
+
+    CONSTRAINT fk_log_usuario FOREIGN KEY (id_usuario)
+        REFERENCES USUARIO(id_usuario)
+);
+
+
+-- TABLA: SESION
+
+CREATE TABLE SESION (
+    id_sesion NUMBER PRIMARY KEY,
+    token VARCHAR2(255),
+    fecha_inicio_s DATE,
+    fecha_fin_s DATE,
+    ip_origen VARCHAR2(50),
+    tipo_evento VARCHAR2(50),
+
+    id_usuario NUMBER,
+
+    CONSTRAINT fk_sesion_usuario FOREIGN KEY (id_usuario)
+        REFERENCES USUARIO(id_usuario)
+);
