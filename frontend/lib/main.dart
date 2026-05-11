@@ -17,16 +17,12 @@ class ProcessSAApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
-      providers: [
-        ChangeNotifierProvider(create: (_) => UsuarioProvider()),
-      ],
+      providers: [ChangeNotifierProvider(create: (_) => UsuarioProvider())],
       child: MaterialApp(
         title: 'Process SA',
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: const Color(0xFF185FA5),
-          ),
+          colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF185FA5)),
           useMaterial3: true,
         ),
         initialRoute: '/login',
