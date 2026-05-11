@@ -36,7 +36,6 @@ public class AuthController {
     private static final String GOOGLE_CLIENT_ID =
             "986429467737-333gr9k40rds0m9nod84v0or8s7833d1.apps.googleusercontent.com";
 
-    // ───────────────── LOGIN NORMAL ─────────────────
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody Map<String, String> body) {
 
@@ -69,7 +68,6 @@ public class AuthController {
         ));
     }
 
-    // ───────────────── LOGIN GOOGLE ─────────────────
     @PostMapping("/login-google")
     public ResponseEntity<?> loginGoogle(@RequestBody Map<String, String> body) {
 
@@ -126,7 +124,6 @@ public class AuthController {
         }
     }
 
-    // ───────────────── TEST HASH PASSWORD ─────────────────
     @GetMapping("/test")
     public String testPassword() {
         return passwordEncoder.encode("123456");

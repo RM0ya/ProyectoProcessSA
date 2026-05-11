@@ -38,12 +38,10 @@ public class SecurityConfig {
                                 "/api/usuarios/crear",
                                 "/api/usuarios/registro-google"
                         ).permitAll()
-                        // Solo Admin puede gestionar usuarios
                         .requestMatchers(
                                 "/api/usuarios",
                                 "/api/usuarios/**"
                         ).permitAll()
-                        // Todo lo demás requiere autenticación
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
