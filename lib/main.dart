@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'data/providers/usuario_provider.dart';
 import 'presentation/screens/login/login_screen.dart';
 import 'presentation/screens/dashboard/dashboard_screen.dart';
 import 'presentation/screens/tareas/tareas_screen.dart';
@@ -14,23 +16,28 @@ class ProcessSAApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Process SA',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF185FA5),
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => UsuarioProvider()),
+      ],
+      child: MaterialApp(
+        title: 'Process SA',
+        debugShowCheckedModeBanner: false,
+        theme: ThemeData(
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: const Color(0xFF185FA5),
+          ),
+          useMaterial3: true,
         ),
-        useMaterial3: true,
+        initialRoute: '/login',
+        routes: {
+          '/login': (context) => const LoginScreen(),
+          '/dashboard': (context) => const DashboardScreen(),
+          '/tareas': (context) => const TareasScreen(),
+          '/procesos': (context) => const ProcesosScreen(),
+          '/perfil': (context) => const PerfilScreen(),
+        },
       ),
-      initialRoute: '/login',
-      routes: {
-        '/login': (context) => const LoginScreen(),
-        '/dashboard': (context) => const DashboardScreen(),
-        '/tareas': (context) => const TareasScreen(),
-        '/procesos': (context) => const ProcesosScreen(),
-        '/perfil': (context) => const PerfilScreen(),
-      },
     );
   }
 }
