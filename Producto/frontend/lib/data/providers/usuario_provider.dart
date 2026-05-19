@@ -11,6 +11,9 @@ class UsuarioProvider extends ChangeNotifier {
   bool isLoading = false;
   String? error;
 
+  // ── NUEVO: expone el token para otros providers ──
+  String? get token => _service.token;
+
   bool get esAdmin =>
       usuarioLogueado?.rol?['nombre']?.toString().toLowerCase() == 'admin';
 
@@ -91,6 +94,7 @@ class UsuarioProvider extends ChangeNotifier {
         apellidoM: null,
         emailUsuario: email,
         password: password,
+        telefono: telefono, // ← agregar esto
         intentosFallidos: 0,
         bloqueado: 'N',
         ultimoLogin: DateTime.now().toIso8601String(),

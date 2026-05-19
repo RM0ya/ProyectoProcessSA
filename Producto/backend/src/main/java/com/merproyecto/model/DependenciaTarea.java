@@ -7,19 +7,23 @@ import lombok.*;
 @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 @Entity
 @Table(name = "DEPENDENCIA_TAREA")
-@Data @NoArgsConstructor @AllArgsConstructor
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
 public class DependenciaTarea {
 
     @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id_dependencia")
     private Integer idDependencia;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumns({
-            @JoinColumn(name = "id_tarea", referencedColumnName = "id_tarea"),
-            @JoinColumn(name = "id_proceso", referencedColumnName = "id_proceso")
-    })
-    private Tarea tarea;
+    @JoinColumn(name = "id_tarea_origen", nullable = false)
+    private Tarea tareaOrigen;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "id_tarea_dependiente", nullable = false)
+    private Tarea tareaDependiente;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "id_estado", nullable = false)

@@ -18,6 +18,7 @@ class UsuarioModel {
 
   final Map<String, dynamic>? rol;
   final Map<String, dynamic>? organizacion;
+  final Map<String, dynamic>? departamento; // NUEVO
 
   UsuarioModel({
     this.idUsuario,
@@ -39,6 +40,7 @@ class UsuarioModel {
 
     this.rol,
     this.organizacion,
+    this.departamento, // NUEVO
   });
 
   factory UsuarioModel.fromJson(Map<String, dynamic> json) {
@@ -56,6 +58,7 @@ class UsuarioModel {
       fechaCreacion: json['fechaCreacion'],
       rol: json['rol'],
       organizacion: json['organizacion'],
+      departamento: json['departamento'], // NUEVO
     );
   }
 
@@ -80,6 +83,7 @@ class UsuarioModel {
 
       'rol': rol,
       'organizacion': organizacion,
+      'departamento': departamento, // NUEVO
     };
   }
 }

@@ -25,23 +25,53 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+
         http
                 .csrf(csrf -> csrf.disable())
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .sessionManagement(session ->
-                        session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                        session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                )
                 .authorizeHttpRequests(auth -> auth
-                        // Endpoints públicos
+
+                        // LOGIN Y REGISTRO
                         .requestMatchers(
                                 "/api/usuarios/login",
                                 "/api/usuarios/login-google",
                                 "/api/usuarios/crear",
                                 "/api/usuarios/registro-google"
                         ).permitAll()
+
+                        // USUARIOS
                         .requestMatchers(
                                 "/api/usuarios",
                                 "/api/usuarios/**"
                         ).permitAll()
+
+                        // ORGANIZACIONES
+                        .requestMatchers(
+                                "/api/organizaciones",
+                                "/api/organizaciones/**"
+                        ).permitAll()
+
+                        // DEPARTAMENTOS
+                        .requestMatchers(
+                                "/api/departamentos",
+                                "/api/departamentos/**"
+                        ).permitAll()
+
+                        // PROCESOS
+                        .requestMatchers(
+                                "/api/procesos",
+                                "/api/procesos/**"
+                        ).permitAll()
+
+                        // TAREAS
+                        .requestMatchers(
+                                "/api/tareas",
+                                "/api/tareas/**"
+                        ).permitAll()
+
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
@@ -56,13 +86,19 @@ public class SecurityConfig {
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
+
         CorsConfiguration config = new CorsConfiguration();
+
         config.setAllowedOriginPatterns(List.of("*"));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+
+        UrlBasedCorsConfigurationSource source =
+                new UrlBasedCorsConfigurationSource();
+
         source.registerCorsConfiguration("/**", config);
+
         return source;
     }
 }

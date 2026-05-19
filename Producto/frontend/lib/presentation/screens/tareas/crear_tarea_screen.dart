@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../../../data/models/tarea_model.dart';
+import '../../../data/models/proceso_model.dart';
+import '../../../data/services/tarea_service.dart';
+import '../../../data/services/proceso_service.dart';
+import '../../../data/providers/usuario_provider.dart';
 
 class CrearTareaScreen extends StatefulWidget {
-  final Function(Map<String, dynamic>) onCrear;
-
-  const CrearTareaScreen({super.key, required this.onCrear});
+  const CrearTareaScreen({super.key});
 
   @override
   State<CrearTareaScreen> createState() => _CrearTareaScreenState();
@@ -14,89 +19,152 @@ class _CrearTareaScreenState extends State<CrearTareaScreen> {
   final _descripcionController = TextEditingController();
   final _fechaController = TextEditingController();
 
-  String _prioridadSeleccionada = 'Media';
-  String _responsableSeleccionado = 'Ana López';
-  String _procesoSeleccionado = 'Onboarding cliente B';
+  final TareaService _tareaService = TareaService();
+  final ProcesoService _procesoService = ProcesoService();
+
+  List<ProcesoModel> _procesos = [];
+  ProcesoModel? _procesoSeleccionado;
+
+  bool _cargandoProcesos = true;
   bool _guardando = false;
 
-  final List<String> _prioridades = ['Baja', 'Media', 'Alta', 'Crítica'];
-  final List<String> _responsables = [
-    'Ana López',
-    'Juan Pérez',
-    'María Castro',
-    'Paula Vega',
-    'Rodrigo Moya',
-  ];
-  final List<String> _procesos = [
-    'Onboarding cliente B',
-    'Auditoría interna Q2',
-    'Rediseño proceso ventas',
-    'Onboarding cliente C',
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _cargarProcesos();
+  }
 
-  Color _colorPrioridad(String prioridad) {
-    switch (prioridad) {
-      case 'Crítica': return Colors.red;
-      case 'Alta': return Colors.orange;
-      case 'Media': return Colors.blue;
-      default: return Colors.grey;
+  Future<void> _cargarProcesos() async {
+    try {
+      final procesos = await _procesoService.getAll();
+
+      setState(() {
+        _procesos = procesos;
+        _procesoSeleccionado = procesos.isNotEmpty ? procesos.first : null;
+        _cargandoProcesos = false;
+      });
+    } catch (e) {
+      setState(() => _cargandoProcesos = false);
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error al cargar procesos: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
-  void _crearTarea() async {
-    if (_tituloController.text.trim().isEmpty) {
+  Future<void> _seleccionarFecha() async {
+    final seleccionada = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now(),
+      firstDate: DateTime(2024),
+      lastDate: DateTime(2035),
+    );
+
+    if (seleccionada == null) return;
+
+    setState(() {
+      _fechaController.text = seleccionada.toIso8601String().split('T').first;
+    });
+  }
+
+  Future<void> _crearTarea() async {
+    final usuarioProvider = Provider.of<UsuarioProvider>(
+      context,
+      listen: false,
+    );
+
+    final usuario = usuarioProvider.usuarioLogueado;
+
+    if (usuario == null || usuario.idUsuario == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('El título es obligatorio'),
+          content: Text('No hay usuario logueado'),
           backgroundColor: Colors.red,
         ),
       );
       return;
     }
-    if (_fechaController.text.trim().isEmpty) {
+
+    if (_procesoSeleccionado == null ||
+        _procesoSeleccionado!.idProceso == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('La fecha límite es obligatoria'),
+          content: Text('Selecciona un proceso'),
           backgroundColor: Colors.red,
         ),
+      );
+      return;
+    }
+
+    if (_tituloController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('El título es obligatorio')));
+      return;
+    }
+
+    if (_fechaController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('La fecha límite es obligatoria')),
       );
       return;
     }
 
     setState(() => _guardando = true);
-    await Future.delayed(const Duration(seconds: 1));
 
-    final iniciales = _responsableSeleccionado
-        .split(' ')
-        .map((p) => p[0])
-        .take(2)
-        .join();
+    try {
+      final tarea = TareaModel(
+        idProceso: _procesoSeleccionado!.idProceso!,
+        idUsuario: usuario.idUsuario!,
+        idEstado: 1,
+        nombreTarea: _tituloController.text.trim(),
+        descripcionT: _descripcionController.text.trim().isEmpty
+            ? 'Sin descripción'
+            : _descripcionController.text.trim(),
+        ordenT: 1,
+        fechaLimiteS: _fechaController.text.trim(),
+        fechaCompletada: null,
+        fechaCreacionT: DateTime.now().toIso8601String().split('T').first,
+      );
 
-    widget.onCrear({
-      'titulo': _tituloController.text.trim(),
-      'proceso': _procesoSeleccionado,
-      'responsable': _responsableSeleccionado,
-      'iniciales': iniciales,
-      'estado': 'Pendiente',
-      'prioridad': _prioridadSeleccionada,
-      'fecha': _fechaController.text.trim(),
-      'descripcion': _descripcionController.text.trim().isEmpty
-          ? 'Sin descripción.'
-          : _descripcionController.text.trim(),
-      'colorPrioridad': _colorPrioridad(_prioridadSeleccionada),
-    });
+      await _tareaService.create(tarea);
 
-    setState(() => _guardando = false);
+      if (!mounted) return;
 
-    if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Tarea creada correctamente'),
           backgroundColor: Color(0xFF639922),
         ),
       );
-      Navigator.pop(context);
+
+      Navigator.pop(context, true);
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error al crear tarea: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _guardando = false);
+      }
     }
+  }
+
+  @override
+  void dispose() {
+    _tituloController.dispose();
+    _descripcionController.dispose();
+    _fechaController.dispose();
+    super.dispose();
   }
 
   @override
@@ -104,226 +172,84 @@ class _CrearTareaScreenState extends State<CrearTareaScreen> {
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        title: const Text('Nueva tarea',
-            style: TextStyle(color: Colors.white)),
+        title: const Text('Nueva tarea', style: TextStyle(color: Colors.white)),
         backgroundColor: const Color(0xFF185FA5),
         iconTheme: const IconThemeData(color: Colors.white),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+      body: _cargandoProcesos
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  _CampoTexto(
+                    label: 'Título de la tarea',
+                    controller: _tituloController,
+                    icono: Icons.task_outlined,
+                    tipo: TextInputType.text,
+                  ),
 
-            _SeccionTitulo(titulo: 'Información de la tarea'),
+                  _CampoTexto(
+                    label: 'Descripción',
+                    controller: _descripcionController,
+                    icono: Icons.notes,
+                    tipo: TextInputType.multiline,
+                    maxLines: 3,
+                  ),
 
-            _CampoTexto(
-              label: 'Título de la tarea',
-              controller: _tituloController,
-              icono: Icons.task_outlined,
-              tipo: TextInputType.text,
-            ),
+                  _DropdownProceso(
+                    procesos: _procesos,
+                    procesoSeleccionado: _procesoSeleccionado,
+                    onChanged: (value) {
+                      setState(() => _procesoSeleccionado = value);
+                    },
+                  ),
 
-            _CampoTexto(
-              label: 'Descripción',
-              controller: _descripcionController,
-              icono: Icons.notes,
-              tipo: TextInputType.multiline,
-              maxLines: 3,
-            ),
+                  _CampoTexto(
+                    label: 'Fecha límite',
+                    controller: _fechaController,
+                    icono: Icons.calendar_today,
+                    tipo: TextInputType.none,
+                    readOnly: true,
+                    onTap: _seleccionarFecha,
+                  ),
 
-            _CampoTexto(
-              label: 'Fecha límite (dd/mm/aaaa)',
-              controller: _fechaController,
-              icono: Icons.calendar_today,
-              tipo: TextInputType.datetime,
-            ),
+                  const SizedBox(height: 24),
 
-            _SeccionTitulo(titulo: 'Asignación'),
-
-            _Dropdown(
-              label: 'Responsable',
-              icono: Icons.person_outline,
-              valor: _responsableSeleccionado,
-              opciones: _responsables,
-              onChanged: (v) =>
-                  setState(() => _responsableSeleccionado = v!),
-            ),
-
-            _Dropdown(
-              label: 'Proceso',
-              icono: Icons.account_tree_outlined,
-              valor: _procesoSeleccionado,
-              opciones: _procesos,
-              onChanged: (v) =>
-                  setState(() => _procesoSeleccionado = v!),
-            ),
-
-            _SeccionTitulo(titulo: 'Prioridad'),
-
-            Row(
-              children: _prioridades.map((p) {
-                final seleccionado = _prioridadSeleccionada == p;
-                final color = _colorPrioridad(p);
-                return GestureDetector(
-                  onTap: () =>
-                      setState(() => _prioridadSeleccionada = p),
-                  child: Container(
-                    margin: const EdgeInsets.only(right: 8),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: seleccionado
-                          ? color
-                          : color.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: seleccionado
-                            ? color
-                            : color.withOpacity(0.3),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: ElevatedButton(
+                      onPressed: _guardando ? null : _crearTarea,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF185FA5),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
                       ),
+                      child: _guardando
+                          ? const CircularProgressIndicator(color: Colors.white)
+                          : const Text(
+                              'Crear tarea',
+                              style: TextStyle(color: Colors.white),
+                            ),
                     ),
-                    child: Text(p,
-                        style: TextStyle(
-                            fontSize: 12,
-                            color: seleccionado
-                                ? Colors.white
-                                : color,
-                            fontWeight: FontWeight.w500)),
                   ),
-                );
-              }).toList(),
-            ),
-
-            const SizedBox(height: 24),
-
-            SizedBox(
-              width: double.infinity,
-              height: 48,
-              child: ElevatedButton(
-                onPressed: _guardando ? null : _crearTarea,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF185FA5),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-                child: _guardando
-                    ? const CircularProgressIndicator(
-                        color: Colors.white)
-                    : const Text('Crear tarea',
-                        style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600)),
+                ],
               ),
             ),
-
-            const SizedBox(height: 12),
-
-            SizedBox(
-              width: double.infinity,
-              height: 48,
-              child: ElevatedButton(
-                onPressed: () => Navigator.pop(context),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.grey.shade100,
-                  foregroundColor: Colors.grey.shade700,
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    side: BorderSide(color: Colors.grey.shade300),
-                  ),
-                ),
-                child: const Text('Cancelar',
-                    style: TextStyle(fontSize: 16)),
-              ),
-            ),
-
-            const SizedBox(height: 24),
-          ],
-        ),
-      ),
     );
   }
 }
 
-class _SeccionTitulo extends StatelessWidget {
-  final String titulo;
-  const _SeccionTitulo({required this.titulo});
+class _DropdownProceso extends StatelessWidget {
+  final List<ProcesoModel> procesos;
+  final ProcesoModel? procesoSeleccionado;
+  final ValueChanged<ProcesoModel?> onChanged;
 
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      child: Text(titulo,
-          style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF185FA5))),
-    );
-  }
-}
-
-class _CampoTexto extends StatelessWidget {
-  final String label;
-  final TextEditingController controller;
-  final IconData icono;
-  final TextInputType tipo;
-  final int maxLines;
-
-  const _CampoTexto({
-    required this.label,
-    required this.controller,
-    required this.icono,
-    required this.tipo,
-    this.maxLines = 1,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: TextField(
-        controller: controller,
-        keyboardType: tipo,
-        maxLines: maxLines,
-        decoration: InputDecoration(
-          labelText: label,
-          prefixIcon: Icon(icono, color: const Color(0xFF185FA5)),
-          filled: true,
-          fillColor: Colors.white,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(10),
-            borderSide: BorderSide(color: Colors.grey.shade300),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(10),
-            borderSide: BorderSide(color: Colors.grey.shade300),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(10),
-            borderSide: const BorderSide(
-                color: Color(0xFF185FA5), width: 2),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _Dropdown extends StatelessWidget {
-  final String label;
-  final IconData icono;
-  final String valor;
-  final List<String> opciones;
-  final ValueChanged<String?> onChanged;
-
-  const _Dropdown({
-    required this.label,
-    required this.icono,
-    required this.valor,
-    required this.opciones,
+  const _DropdownProceso({
+    required this.procesos,
+    required this.procesoSeleccionado,
     required this.onChanged,
   });
 
@@ -340,28 +266,66 @@ class _Dropdown extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Icon(icono, color: const Color(0xFF185FA5), size: 20),
+            const Icon(Icons.account_tree_outlined, color: Color(0xFF185FA5)),
             const SizedBox(width: 10),
             Expanded(
               child: DropdownButtonHideUnderline(
-                child: DropdownButton<String>(
-                  value: valor,
+                child: DropdownButton<ProcesoModel>(
+                  value: procesoSeleccionado,
                   isExpanded: true,
-                  icon: const Icon(Icons.keyboard_arrow_down,
-                      color: Color(0xFF185FA5)),
-                  style: const TextStyle(
-                      fontSize: 13, color: Colors.black87),
+                  hint: const Text('Selecciona un proceso'),
+                  items: procesos.map((proceso) {
+                    return DropdownMenuItem<ProcesoModel>(
+                      value: proceso,
+                      child: Text(proceso.nombre),
+                    );
+                  }).toList(),
                   onChanged: onChanged,
-                  items: opciones
-                      .map((o) => DropdownMenuItem(
-                            value: o,
-                            child: Text(o),
-                          ))
-                      .toList(),
                 ),
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CampoTexto extends StatelessWidget {
+  final String label;
+  final TextEditingController controller;
+  final IconData icono;
+  final TextInputType tipo;
+  final int maxLines;
+  final bool readOnly;
+  final VoidCallback? onTap;
+
+  const _CampoTexto({
+    required this.label,
+    required this.controller,
+    required this.icono,
+    required this.tipo,
+    this.maxLines = 1,
+    this.readOnly = false,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: TextField(
+        controller: controller,
+        keyboardType: tipo,
+        maxLines: maxLines,
+        readOnly: readOnly,
+        onTap: onTap,
+        decoration: InputDecoration(
+          labelText: label,
+          prefixIcon: Icon(icono, color: const Color(0xFF185FA5)),
+          filled: true,
+          fillColor: Colors.white,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
         ),
       ),
     );

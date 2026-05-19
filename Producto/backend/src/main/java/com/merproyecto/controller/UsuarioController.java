@@ -1,8 +1,10 @@
 package com.merproyecto.controller;
 
+import com.merproyecto.model.Departamento;
 import com.merproyecto.model.Organizacion;
 import com.merproyecto.model.Rol;
 import com.merproyecto.model.Usuario;
+import com.merproyecto.repository.DepartamentoRepository;
 import com.merproyecto.repository.OrganizacionRepository;
 import com.merproyecto.repository.RolRepository;
 import com.merproyecto.service.UsuarioService;
@@ -22,6 +24,7 @@ public class UsuarioController {
     private final UsuarioService usuarioService;
     private final RolRepository rolRepository;
     private final OrganizacionRepository organizacionRepository;
+    private final DepartamentoRepository departamentoRepository; // NUEVO
 
     @GetMapping
     public List<Usuario> listarUsuarios() {
@@ -29,30 +32,23 @@ public class UsuarioController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<?> eliminarUsuario(
-            @PathVariable Integer id
-    ) {
+    public ResponseEntity<?> eliminarUsuario(@PathVariable Integer id) {
 
-        Usuario usuario = usuarioService.findById(id)
-                .orElseThrow(() ->
-                        new RuntimeException("Usuario no encontrado"));
+        usuarioService.findById(id)
+                .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
 
         usuarioService.deleteById(id);
 
-        return ResponseEntity.ok(
-                "Usuario eliminado correctamente"
-        );
+        return ResponseEntity.ok("Usuario eliminado correctamente");
     }
 
     @PutMapping("/{id}")
     public ResponseEntity<?> actualizarUsuario(
             @PathVariable Integer id,
-            @RequestBody Usuario usuarioActualizado
-    ) {
+            @RequestBody Usuario usuarioActualizado) {
 
         Usuario usuario = usuarioService.findById(id)
-                .orElseThrow(() ->
-                        new RuntimeException("Usuario no encontrado"));
+                .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
 
         usuario.setNombre(usuarioActualizado.getNombre());
         usuario.setApellidoP(usuarioActualizado.getApellidoP());
@@ -61,33 +57,46 @@ public class UsuarioController {
 
         if (usuarioActualizado.getPassword() != null &&
                 !usuarioActualizado.getPassword().isEmpty()) {
-
             usuario.setPassword(usuarioActualizado.getPassword());
         }
 
         usuario.setTelefono(usuarioActualizado.getTelefono());
         usuario.setBloqueado(usuarioActualizado.getBloqueado());
 
+        // Rol
         if (usuarioActualizado.getRol() != null &&
                 usuarioActualizado.getRol().getIdRol() != null) {
 
             Rol rol = rolRepository.findById(
                     usuarioActualizado.getRol().getIdRol()
-            ).orElseThrow(() ->
-                    new RuntimeException("Rol no encontrado"));
+            ).orElseThrow(() -> new RuntimeException("Rol no encontrado"));
 
             usuario.setRol(rol);
         }
 
+        // Organización
         if (usuarioActualizado.getOrganizacion() != null &&
                 usuarioActualizado.getOrganizacion().getIdOrganizacion() != null) {
 
             Organizacion org = organizacionRepository.findById(
                     usuarioActualizado.getOrganizacion().getIdOrganizacion()
-            ).orElseThrow(() ->
-                    new RuntimeException("Organización no encontrada"));
+            ).orElseThrow(() -> new RuntimeException("Organización no encontrada"));
 
             usuario.setOrganizacion(org);
+        }
+
+        // ── NUEVO: Departamento ──────────────────────────────────────────
+        if (usuarioActualizado.getDepartamento() != null &&
+                usuarioActualizado.getDepartamento().getIdDepartamento() != null) {
+
+            Departamento dep = departamentoRepository.findById(
+                    usuarioActualizado.getDepartamento().getIdDepartamento()
+            ).orElseThrow(() -> new RuntimeException("Departamento no encontrado"));
+
+            usuario.setDepartamento(dep);
+
+        } else {
+            usuario.setDepartamento(null);
         }
 
         Usuario actualizado = usuarioService.save(usuario);

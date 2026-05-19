@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'data/providers/usuario_provider.dart';
+import 'data/providers/departamento_provider.dart'; // NUEVO
 import 'presentation/screens/login/login_screen.dart';
 import 'presentation/screens/dashboard/dashboard_screen.dart';
 import 'presentation/screens/tareas/tareas_screen.dart';
 import 'presentation/screens/procesos/procesos_screen.dart';
 import 'presentation/screens/perfil/perfil_screen.dart';
+import 'data/providers/organizacion_provider.dart';
 
 void main() {
   runApp(const ProcessSAApp());
@@ -17,7 +19,11 @@ class ProcessSAApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
-      providers: [ChangeNotifierProvider(create: (_) => UsuarioProvider())],
+      providers: [
+        ChangeNotifierProvider(create: (_) => UsuarioProvider()),
+        ChangeNotifierProvider(create: (_) => DepartamentoProvider()), // NUEVO
+        ChangeNotifierProvider(create: (_) => OrganizacionProvider()),
+      ],
       child: MaterialApp(
         title: 'Process SA',
         debugShowCheckedModeBanner: false,

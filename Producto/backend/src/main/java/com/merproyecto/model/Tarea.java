@@ -3,6 +3,7 @@ package com.merproyecto.model;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.*;
+
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
@@ -14,11 +15,14 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 public class Tarea {
 
-    @EmbeddedId
-    private TareaId id;
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id_tarea")
+    private Integer idTarea;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "id_proceso", insertable = false, updatable = false)
+    @JoinColumn(name = "id_proceso", nullable = false)
+    @JsonIgnoreProperties({"tareas", "hibernateLazyInitializer", "handler"})
     private Proceso proceso;
 
     @Column(name = "nombre_tarea", nullable = false, length = 30)
@@ -41,9 +45,11 @@ public class Tarea {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "id_usuario", nullable = false)
+    @JsonIgnoreProperties({"tareas", "password", "hibernateLazyInitializer", "handler"})
     private Usuario usuario;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "id_estado", nullable = false)
+    @JsonIgnoreProperties({"tareas", "procesos", "hibernateLazyInitializer", "handler"})
     private Estado estado;
 }

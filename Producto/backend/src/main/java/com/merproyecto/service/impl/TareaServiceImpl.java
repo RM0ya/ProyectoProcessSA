@@ -1,11 +1,12 @@
 package com.merproyecto.service.impl;
 
 import com.merproyecto.model.Tarea;
-import com.merproyecto.model.TareaId;
 import com.merproyecto.repository.TareaRepository;
 import com.merproyecto.service.TareaService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -22,12 +23,7 @@ public class TareaServiceImpl implements TareaService {
 
     @Override
     public Optional<Tarea> findById(Integer id) {
-        // Para búsqueda simple solo por id_tarea no aplica directamente
-        return Optional.empty();
-    }
-
-    public Optional<Tarea> findById(TareaId tareaId) {
-        return repository.findById(tareaId);
+        return repository.findById(id);
     }
 
     @Override
@@ -37,18 +33,26 @@ public class TareaServiceImpl implements TareaService {
 
     @Override
     public void deleteById(Integer id) {
-        // Requiere ambas partes de la clave - usar deleteById(TareaId) en su lugar
+        repository.deleteById(id);
     }
 
-    public void deleteById(TareaId tareaId) {
-        repository.deleteById(tareaId);
-    }
-
+    @Override
     public List<Tarea> findByProceso(Integer idProceso) {
-        return repository.findByIdIdProceso(idProceso);
+        return repository.findByProceso_IdProceso(idProceso);
     }
 
+    @Override
     public List<Tarea> findByUsuario(Integer idUsuario) {
-        return repository.findByUsuarioIdUsuario(idUsuario);
+        return repository.findByUsuario_IdUsuario(idUsuario);
+    }
+
+    @Override
+    public List<Tarea> findByEstado(String estado) {
+        return repository.findByEstado_NombreEstado(estado);
+    }
+
+    @Override
+    public List<Tarea> findTareasVencidas() {
+        return repository.findByFechaLimiteSBefore(LocalDate.now());
     }
 }

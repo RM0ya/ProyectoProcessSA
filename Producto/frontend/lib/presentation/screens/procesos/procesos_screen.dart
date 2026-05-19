@@ -1,46 +1,96 @@
 import 'package:flutter/material.dart';
+import '../../../data/models/proceso_model.dart';
+import '../../../data/services/proceso_service.dart';
 
-class ProcesosScreen extends StatelessWidget {
+class ProcesosScreen extends StatefulWidget {
   const ProcesosScreen({super.key});
 
-  final List<Map<String, dynamic>> _procesos = const [
-    {
-      'nombre': 'Onboarding cliente B',
-      'cliente': 'Cliente B',
-      'tareas': 10,
-      'completadas': 7,
-      'estado': 'En curso',
-      'fecha': '30/04/2026',
-      'color': Color(0xFF185FA5),
-    },
-    {
-      'nombre': 'Auditoría interna Q2',
-      'cliente': 'Interno',
-      'tareas': 10,
-      'completadas': 4,
-      'estado': 'En riesgo',
-      'fecha': '15/05/2026',
-      'color': Colors.orange,
-    },
-    {
-      'nombre': 'Rediseño proceso ventas',
-      'cliente': 'Cliente A',
-      'tareas': 8,
-      'completadas': 8,
-      'estado': 'Completado',
-      'fecha': '10/04/2026',
-      'color': Colors.green,
-    },
-    {
-      'nombre': 'Onboarding cliente C',
-      'cliente': 'Cliente C',
-      'tareas': 12,
-      'completadas': 2,
-      'estado': 'Pendiente',
-      'fecha': '20/05/2026',
-      'color': Colors.grey,
-    },
-  ];
+  @override
+  State<ProcesosScreen> createState() => _ProcesosScreenState();
+}
+
+class _ProcesosScreenState extends State<ProcesosScreen> {
+  final ProcesoService _service = ProcesoService();
+  late Future<List<ProcesoModel>> _futureProcesos;
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarProcesos();
+  }
+
+  void _cargarProcesos() {
+    _futureProcesos = _service.getAll();
+  }
+
+  Future<void> _refrescar() async {
+    setState(() {
+      _cargarProcesos();
+    });
+  }
+
+  Future<void> _eliminarProceso(int id) async {
+    await _service.delete(id);
+    await _refrescar();
+  }
+
+  Color _colorPorFecha(String fechaLimite) {
+    final fecha = DateTime.tryParse(fechaLimite);
+    if (fecha == null) return Colors.blue;
+
+    final hoy = DateTime.now();
+    if (fecha.isBefore(hoy)) return Colors.red;
+    if (fecha.difference(hoy).inDays <= 7) return Colors.orange;
+    return Colors.green;
+  }
+
+  String _estadoPorFecha(String fechaLimite) {
+    final fecha = DateTime.tryParse(fechaLimite);
+    if (fecha == null) return 'En curso';
+
+    final hoy = DateTime.now();
+    if (fecha.isBefore(hoy)) return 'Vencido';
+    if (fecha.difference(hoy).inDays <= 7) return 'En riesgo';
+    return 'En curso';
+  }
+
+  void _confirmarEliminar(ProcesoModel proceso) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Eliminar proceso'),
+        content: Text('¿Deseas eliminar "${proceso.nombre}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              if (proceso.idProceso != null) {
+                await _eliminarProceso(proceso.idProceso!);
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text(
+              'Eliminar',
+              style: TextStyle(color: Colors.white),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _abrirFormulario({ProcesoModel? proceso}) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CrearEditarProcesoScreen(proceso: proceso),
+      ),
+    ).then((_) => _refrescar());
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -49,186 +99,343 @@ class ProcesosScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Procesos', style: TextStyle(color: Colors.white)),
         backgroundColor: const Color(0xFF185FA5),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.filter_list, color: Colors.white),
-            onPressed: () {},
-          ),
-        ],
       ),
-      body: Column(
-        children: [
-          Container(
-            color: Colors.white,
-            padding: const EdgeInsets.all(16),
-            child: Row(
+      body: FutureBuilder<List<ProcesoModel>>(
+        future: _futureProcesos,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          if (snapshot.hasError) {
+            return Center(child: Text('Error: ${snapshot.error}'));
+          }
+
+          final procesos = snapshot.data ?? [];
+
+          if (procesos.isEmpty) {
+            return const Center(child: Text('No hay procesos registrados'));
+          }
+
+          return RefreshIndicator(
+            onRefresh: _refrescar,
+            child: Column(
               children: [
-                _ResumenChip(
-                  label: 'Total',
-                  valor: '4',
-                  color: const Color(0xFF185FA5),
-                ),
-                const SizedBox(width: 10),
-                _ResumenChip(label: 'En curso', valor: '2', color: Colors.blue),
-                const SizedBox(width: 10),
-                _ResumenChip(
-                  label: 'En riesgo',
-                  valor: '1',
-                  color: Colors.orange,
-                ),
-                const SizedBox(width: 10),
-                _ResumenChip(label: 'Listos', valor: '1', color: Colors.green),
-              ],
-            ),
-          ),
-          Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: _procesos.length,
-              itemBuilder: (context, index) {
-                final proceso = _procesos[index];
-                final porcentaje = proceso['completadas'] / proceso['tareas'];
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 12),
+                Container(
+                  color: Colors.white,
                   padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.grey.shade200),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  child: Row(
                     children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              proceso['nombre'],
-                              style: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 3,
-                            ),
-                            decoration: BoxDecoration(
-                              color: (proceso['color'] as Color).withOpacity(
-                                0.1,
-                              ),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text(
-                              proceso['estado'],
-                              style: TextStyle(
-                                fontSize: 10,
-                                color: proceso['color'],
-                              ),
-                            ),
-                          ),
-                        ],
+                      _ResumenChip(
+                        label: 'Total',
+                        valor: '${procesos.length}',
+                        color: const Color(0xFF185FA5),
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        proceso['cliente'],
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: Colors.grey,
-                        ),
+                      const SizedBox(width: 10),
+                      _ResumenChip(
+                        label: 'Activos',
+                        valor: '${procesos.where((p) => _estadoPorFecha(p.fechaLimite) == 'En curso').length}',
+                        color: Colors.green,
                       ),
-                      const SizedBox(height: 10),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(4),
-                              child: LinearProgressIndicator(
-                                value: porcentaje,
-                                backgroundColor: Colors.grey.shade200,
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                  proceso['color'],
-                                ),
-                                minHeight: 6,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            '${(porcentaje * 100).round()}%',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: proceso['color'],
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      Row(
-                        children: [
-                          Icon(Icons.task_alt, size: 12, color: Colors.grey),
-                          const SizedBox(width: 4),
-                          Text(
-                            '${proceso['completadas']} de ${proceso['tareas']} tareas',
-                            style: const TextStyle(
-                              fontSize: 11,
-                              color: Colors.grey,
-                            ),
-                          ),
-                          const Spacer(),
-                          Icon(
-                            Icons.calendar_today,
-                            size: 12,
-                            color: Colors.grey,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            proceso['fecha'],
-                            style: const TextStyle(
-                              fontSize: 11,
-                              color: Colors.grey,
-                            ),
-                          ),
-                        ],
+                      const SizedBox(width: 10),
+                      _ResumenChip(
+                        label: 'Riesgo',
+                        valor: '${procesos.where((p) => _estadoPorFecha(p.fechaLimite) == 'En riesgo').length}',
+                        color: Colors.orange,
                       ),
                     ],
                   ),
-                );
-              },
+                ),
+                Expanded(
+                  child: ListView.builder(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: procesos.length,
+                    itemBuilder: (context, index) {
+                      final proceso = procesos[index];
+                      final estado = _estadoPorFecha(proceso.fechaLimite);
+                      final color = _colorPorFecha(proceso.fechaLimite);
+
+                      return GestureDetector(
+                        onTap: () => _abrirFormulario(proceso: proceso),
+                        child: Container(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: Colors.grey.shade200),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      proceso.nombre,
+                                      style: const TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                  _Badge(label: estado, color: color),
+                                ],
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                proceso.descripcionProceso,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.black54,
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              Row(
+                                children: [
+                                  const Icon(Icons.calendar_today, size: 14, color: Colors.grey),
+                                  const SizedBox(width: 5),
+                                  Text(
+                                    '${proceso.fechaInicio} → ${proceso.fechaLimite}',
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      color: Colors.grey,
+                                    ),
+                                  ),
+                                  const Spacer(),
+                                  IconButton(
+                                    icon: const Icon(Icons.edit, color: Color(0xFF185FA5)),
+                                    onPressed: () => _abrirFormulario(proceso: proceso),
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.delete_outline, color: Colors.red),
+                                    onPressed: () => _confirmarEliminar(proceso),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
             ),
-          ),
-        ],
+          );
+        },
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () {},
         backgroundColor: const Color(0xFF185FA5),
+        onPressed: () => _abrirFormulario(),
         child: const Icon(Icons.add, color: Colors.white),
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: const Color(0xFF185FA5),
-        currentIndex: 2,
-        onTap: (index) {
-          if (index == 0) {
-            Navigator.pushReplacementNamed(context, '/dashboard');
-          } else if (index == 1) {
-            Navigator.pushReplacementNamed(context, '/tareas');
-          } else if (index == 3) {
-            Navigator.pushReplacementNamed(context, '/perfil');
-          }
-        },
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Inicio'),
-          BottomNavigationBarItem(icon: Icon(Icons.task), label: 'Tareas'),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.account_tree),
-            label: 'Procesos',
-          ),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Perfil'),
-        ],
+    );
+  }
+}
+
+class CrearEditarProcesoScreen extends StatefulWidget {
+  final ProcesoModel? proceso;
+
+  const CrearEditarProcesoScreen({super.key, this.proceso});
+
+  @override
+  State<CrearEditarProcesoScreen> createState() =>
+      _CrearEditarProcesoScreenState();
+}
+
+class _CrearEditarProcesoScreenState extends State<CrearEditarProcesoScreen> {
+  final ProcesoService _service = ProcesoService();
+
+  final _nombreController = TextEditingController();
+  final _descripcionController = TextEditingController();
+  final _fechaInicioController = TextEditingController();
+  final _fechaLimiteController = TextEditingController();
+
+  bool _guardando = false;
+
+  bool get _editando => widget.proceso != null;
+
+  @override
+  void initState() {
+    super.initState();
+
+    final p = widget.proceso;
+
+    if (p != null) {
+      _nombreController.text = p.nombre;
+      _descripcionController.text = p.descripcionProceso;
+      _fechaInicioController.text = p.fechaInicio;
+      _fechaLimiteController.text = p.fechaLimite;
+    } else {
+      _fechaInicioController.text =
+          DateTime.now().toIso8601String().split('T').first;
+    }
+  }
+
+  Future<void> _seleccionarFecha(TextEditingController controller) async {
+    final inicial = DateTime.tryParse(controller.text) ?? DateTime.now();
+
+    final seleccionada = await showDatePicker(
+      context: context,
+      initialDate: inicial,
+      firstDate: DateTime(2024),
+      lastDate: DateTime(2035),
+    );
+
+    if (seleccionada == null) return;
+
+    setState(() {
+      controller.text = seleccionada.toIso8601String().split('T').first;
+    });
+  }
+
+  Future<void> _guardar() async {
+    if (_nombreController.text.trim().isEmpty ||
+        _descripcionController.text.trim().isEmpty ||
+        _fechaInicioController.text.trim().isEmpty ||
+        _fechaLimiteController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Completa todos los campos')),
+      );
+      return;
+    }
+
+    setState(() => _guardando = true);
+
+    try {
+      final proceso = ProcesoModel(
+        idProceso: widget.proceso?.idProceso,
+        nombre: _nombreController.text.trim(),
+        descripcionProceso: _descripcionController.text.trim(),
+        fechaInicio: _fechaInicioController.text.trim(),
+        fechaLimite: _fechaLimiteController.text.trim(),
+        fechaCreacion:
+            widget.proceso?.fechaCreacion ?? DateTime.now().toIso8601String().split('T').first,
+      );
+
+      if (_editando) {
+        await _service.update(widget.proceso!.idProceso!, proceso);
+      } else {
+        await _service.create(proceso);
+      }
+
+      if (!mounted) return;
+      Navigator.pop(context, true);
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error al guardar proceso: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _guardando = false);
+    }
+  }
+
+  @override
+  void dispose() {
+    _nombreController.dispose();
+    _descripcionController.dispose();
+    _fechaInicioController.dispose();
+    _fechaLimiteController.dispose();
+    super.dispose();
+  }
+
+  Widget _campo({
+    required String label,
+    required TextEditingController controller,
+    required IconData icon,
+    int maxLines = 1,
+    bool calendario = false,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: TextField(
+        controller: controller,
+        maxLines: maxLines,
+        readOnly: calendario,
+        onTap: calendario ? () => _seleccionarFecha(controller) : null,
+        decoration: InputDecoration(
+          labelText: label,
+          prefixIcon: Icon(icon, color: const Color(0xFF185FA5)),
+          filled: true,
+          fillColor: Colors.white,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.grey[50],
+      appBar: AppBar(
+        title: Text(
+          _editando ? 'Editar proceso' : 'Nuevo proceso',
+          style: const TextStyle(color: Colors.white),
+        ),
+        backgroundColor: const Color(0xFF185FA5),
+        iconTheme: const IconThemeData(color: Colors.white),
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            _campo(
+              label: 'Nombre del proceso',
+              controller: _nombreController,
+              icon: Icons.account_tree_outlined,
+            ),
+            _campo(
+              label: 'Descripción',
+              controller: _descripcionController,
+              icon: Icons.notes,
+              maxLines: 3,
+            ),
+            _campo(
+              label: 'Fecha inicio',
+              controller: _fechaInicioController,
+              icon: Icons.calendar_month,
+              calendario: true,
+            ),
+            _campo(
+              label: 'Fecha límite',
+              controller: _fechaLimiteController,
+              icon: Icons.event_available,
+              calendario: true,
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton.icon(
+                onPressed: _guardando ? null : _guardar,
+                icon: _guardando
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                      )
+                    : const Icon(Icons.save, color: Colors.white),
+                label: Text(
+                  _guardando ? 'Guardando...' : 'Guardar proceso',
+                  style: const TextStyle(color: Colors.white),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF185FA5),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -252,7 +459,7 @@ class _ResumenChip extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 8),
         decoration: BoxDecoration(
           color: color.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(9),
         ),
         child: Column(
           children: [
@@ -260,17 +467,33 @@ class _ResumenChip extends StatelessWidget {
               valor,
               style: TextStyle(
                 fontSize: 16,
-                fontWeight: FontWeight.w600,
+                fontWeight: FontWeight.w700,
                 color: color,
               ),
             ),
-            Text(
-              label,
-              style: const TextStyle(fontSize: 10, color: Colors.grey),
-            ),
+            Text(label, style: const TextStyle(fontSize: 10, color: Colors.grey)),
           ],
         ),
       ),
+    );
+  }
+}
+
+class _Badge extends StatelessWidget {
+  final String label;
+  final Color color;
+
+  const _Badge({required this.label, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(label, style: TextStyle(fontSize: 11, color: color)),
     );
   }
 }

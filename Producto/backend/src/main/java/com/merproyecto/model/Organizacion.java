@@ -14,6 +14,7 @@ import java.time.LocalDate;
 public class Organizacion {
 
     @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id_organizacion")
     private Integer idOrganizacion;
 

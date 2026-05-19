@@ -57,6 +57,10 @@ public class Usuario {
     @JoinColumn(name = "id_organizacion", nullable = false)
     private Organizacion organizacion;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "id_departamento", nullable = true)
+    private Departamento departamento;
+
     @Column(name = "telefono", length = 12)
     private String telefono;
 }

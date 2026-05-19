@@ -3,6 +3,8 @@ package com.merproyecto.model;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.time.LocalDateTime;
+
 @Entity
 @Table(name = "KPI")
 @Data
@@ -11,6 +13,7 @@ import lombok.*;
 public class Kpi {
 
     @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id_kpi")
     private Integer idKpi;
 
@@ -23,9 +26,11 @@ public class Kpi {
     @Column(name = "valor_objetivo", nullable = false)
     private Integer valorObjetivo;
 
-    @Column(name = "unidad_kpi", nullable = false)
-    private Integer unidadKpi;
+    // CAMBIADO A STRING
+    @Column(name = "unidad_kpi", length = 20)
+    private String unidadKpi;
 
-    @Column(name = "calculado_en", nullable = false)
-    private Integer calculadoEn;
+    // CAMBIADO A LOCALDATETIME
+    @Column(name = "calculado_en")
+    private LocalDateTime calculadoEn;
 }

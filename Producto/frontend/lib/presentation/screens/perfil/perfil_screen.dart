@@ -1,12 +1,43 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../../../data/providers/usuario_provider.dart';
 import '../editar_perfil/editar_perfil_screen.dart';
 import '../notificaciones/notificaciones_config_screen.dart';
 
 class PerfilScreen extends StatelessWidget {
   const PerfilScreen({super.key});
 
+  String _iniciales(String nombre, String apellido) {
+    final n = nombre.isNotEmpty ? nombre[0] : '';
+    final a = apellido.isNotEmpty ? apellido[0] : '';
+    return '$n$a'.toUpperCase();
+  }
+
   @override
   Widget build(BuildContext context) {
+    final provider = Provider.of<UsuarioProvider>(context);
+    final usuario = provider.usuarioLogueado;
+
+    if (usuario == null) {
+      return const Scaffold(
+        body: Center(
+          child: Text('No hay usuario conectado'),
+        ),
+      );
+    }
+
+    final nombreCompleto =
+        '${usuario.nombre} ${usuario.apellidoP}'.trim();
+
+    final rol = usuario.rol?['nombre']?.toString() ?? 'Usuario';
+
+    final organizacion =
+        usuario.organizacion?['nombre']?.toString() ?? 'Sin organización';
+
+    final departamento =
+        usuario.departamento?['nombre']?.toString() ?? 'Sin departamento';
+
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
@@ -35,28 +66,32 @@ class PerfilScreen extends StatelessWidget {
               padding: const EdgeInsets.all(24),
               child: Column(
                 children: [
-                  Stack(
-                    children: [
-                      CircleAvatar(
-                        radius: 36,
-                        backgroundColor: const Color(0xFFE6F1FB),
-                        child: const Text(
-                          'SM',
-                          style: TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF185FA5),
-                          ),
-                        ),
+                  CircleAvatar(
+                    radius: 36,
+                    backgroundColor: const Color(0xFFE6F1FB),
+                    child: Text(
+                      _iniciales(usuario.nombre, usuario.apellidoP),
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF185FA5),
                       ),
-                    ],
+                    ),
                   ),
                   const SizedBox(height: 12),
-                  const Text(
-                    'Sebastián Mardones',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                  Text(
+                    nombreCompleto,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                   const SizedBox(height: 4),
+                  Text(
+                    usuario.emailUsuario,
+                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                  const SizedBox(height: 8),
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 12,
@@ -66,29 +101,13 @@ class PerfilScreen extends StatelessWidget {
                       color: const Color(0xFFE6F1FB),
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: const Text(
-                      'Administrador',
-                      style: TextStyle(fontSize: 12, color: Color(0xFF0C447C)),
+                    child: Text(
+                      rol,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF0C447C),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      _StatItem(valor: '18', label: 'Tareas'),
-                      Container(
-                        width: 1,
-                        height: 30,
-                        color: Colors.grey.shade200,
-                      ),
-                      _StatItem(valor: '5', label: 'Procesos'),
-                      Container(
-                        width: 1,
-                        height: 30,
-                        color: Colors.grey.shade200,
-                      ),
-                      _StatItem(valor: '92%', label: 'Cumpl.'),
-                    ],
                   ),
                   const SizedBox(height: 16),
                   SizedBox(
@@ -117,70 +136,55 @@ class PerfilScreen extends StatelessWidget {
                 ],
               ),
             ),
+
             const SizedBox(height: 12),
+
             Container(
               color: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 12),
-                    child: Text(
-                      'Información',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.grey,
-                      ),
-                    ),
-                  ),
                   _InfoRow(
                     icono: Icons.email_outlined,
                     label: 'Correo',
-                    valor: 'se.mardones@process.cl',
+                    valor: usuario.emailUsuario,
                   ),
                   _InfoRow(
                     icono: Icons.phone_outlined,
                     label: 'Teléfono',
-                    valor: '+56 9 1234 5678',
+                    valor: usuario.telefono ?? 'Sin teléfono',
                   ),
                   _InfoRow(
                     icono: Icons.work_outline,
-                    label: 'Cargo',
-                    valor: 'Admin. sistema',
+                    label: 'Rol',
+                    valor: rol,
                   ),
                   _InfoRow(
                     icono: Icons.business_outlined,
-                    label: 'Área',
-                    valor: 'TI',
+                    label: 'Organización',
+                    valor: organizacion,
+                  ),
+                  _InfoRow(
+                    icono: Icons.apartment_outlined,
+                    label: 'Departamento',
+                    valor: departamento,
                   ),
                   _InfoRow(
                     icono: Icons.access_time,
                     label: 'Último acceso',
-                    valor: 'Hoy 09:30',
+                    valor: usuario.ultimoLogin ?? 'Sin registro',
                   ),
                 ],
               ),
             ),
+
             const SizedBox(height: 12),
+
             Container(
               color: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 12),
-                    child: Text(
-                      'Configuración',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.grey,
-                      ),
-                    ),
-                  ),
                   GestureDetector(
                     onTap: () {
                       Navigator.push(
@@ -191,44 +195,13 @@ class PerfilScreen extends StatelessWidget {
                         ),
                       );
                     },
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 32,
-                            height: 32,
-                            decoration: BoxDecoration(
-                              color: Colors.orange.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: const Icon(
-                              Icons.notifications_outlined,
-                              size: 16,
-                              color: Colors.orange,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          const Text(
-                            'Notificaciones',
-                            style: TextStyle(fontSize: 13),
-                          ),
-                          const Spacer(),
-                          const Icon(
-                            Icons.chevron_right,
-                            size: 18,
-                            color: Colors.grey,
-                          ),
-                        ],
-                      ),
+                    child: const _MenuRow(
+                      icono: Icons.notifications_outlined,
+                      label: 'Notificaciones',
+                      color: Colors.orange,
                     ),
                   ),
-                  _MenuRow(
-                    icono: Icons.people_outline,
-                    label: 'Gestión de usuarios',
-                    color: Colors.purple,
-                  ),
-                  _MenuRow(
+                  const _MenuRow(
                     icono: Icons.bar_chart,
                     label: 'Reportes',
                     color: Colors.green,
@@ -236,7 +209,9 @@ class PerfilScreen extends StatelessWidget {
                 ],
               ),
             ),
+
             const SizedBox(height: 12),
+
             Padding(
               padding: const EdgeInsets.all(16),
               child: SizedBox(
@@ -244,6 +219,7 @@ class PerfilScreen extends StatelessWidget {
                 height: 48,
                 child: ElevatedButton(
                   onPressed: () {
+                    provider.cerrarSesion();
                     Navigator.pushReplacementNamed(context, '/login');
                   },
                   style: ElevatedButton.styleFrom(
@@ -270,12 +246,13 @@ class PerfilScreen extends StatelessWidget {
         selectedItemColor: const Color(0xFF185FA5),
         currentIndex: 3,
         onTap: (index) {
-          if (index == 0)
+          if (index == 0) {
             Navigator.pushReplacementNamed(context, '/dashboard');
-          else if (index == 1)
+          } else if (index == 1) {
             Navigator.pushReplacementNamed(context, '/tareas');
-          else if (index == 2)
+          } else if (index == 2) {
             Navigator.pushReplacementNamed(context, '/procesos');
+          }
         },
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Inicio'),
@@ -291,33 +268,11 @@ class PerfilScreen extends StatelessWidget {
   }
 }
 
-class _StatItem extends StatelessWidget {
-  final String valor;
-  final String label;
-  const _StatItem({required this.valor, required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Text(
-          valor,
-          style: const TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-            color: Color(0xFF185FA5),
-          ),
-        ),
-        Text(label, style: const TextStyle(fontSize: 11, color: Colors.grey)),
-      ],
-    );
-  }
-}
-
 class _InfoRow extends StatelessWidget {
   final IconData icono;
   final String label;
   final String valor;
+
   const _InfoRow({
     required this.icono,
     required this.label,
@@ -327,14 +282,21 @@ class _InfoRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10),
+      padding: const EdgeInsets.symmetric(vertical: 11),
       child: Row(
         children: [
           Icon(icono, size: 18, color: const Color(0xFF185FA5)),
           const SizedBox(width: 12),
           Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
           const Spacer(),
-          Text(valor, style: const TextStyle(fontSize: 12)),
+          Flexible(
+            child: Text(
+              valor,
+              textAlign: TextAlign.right,
+              style: const TextStyle(fontSize: 12),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
         ],
       ),
     );
@@ -345,6 +307,7 @@ class _MenuRow extends StatelessWidget {
   final IconData icono;
   final String label;
   final Color color;
+
   const _MenuRow({
     required this.icono,
     required this.label,
@@ -354,18 +317,10 @@ class _MenuRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10),
+      padding: const EdgeInsets.symmetric(vertical: 11),
       child: Row(
         children: [
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(icono, size: 16, color: color),
-          ),
+          Icon(icono, size: 18, color: color),
           const SizedBox(width: 12),
           Text(label, style: const TextStyle(fontSize: 13)),
           const Spacer(),
