@@ -1,4 +1,4 @@
-<<<<<<< HEAD
+
 # MERPROYECTO - Backend Spring Boot
 
 ## Requisitos
