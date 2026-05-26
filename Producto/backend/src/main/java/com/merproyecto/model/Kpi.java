@@ -26,11 +26,11 @@ public class Kpi {
     @Column(name = "valor_objetivo", nullable = false)
     private Integer valorObjetivo;
 
-    // CAMBIADO A STRING
+
     @Column(name = "unidad_kpi", length = 20)
     private String unidadKpi;
 
-    // CAMBIADO A LOCALDATETIME
+
     @Column(name = "calculado_en")
     private LocalDateTime calculadoEn;
 }

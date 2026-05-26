@@ -41,6 +41,7 @@ class _AdminScreenState extends State<AdminScreen> {
     );
   }
 
+  // FIX #1: guardar messenger y navigator ANTES del await
   void _confirmarEliminar(BuildContext context, UsuarioModel usuario) {
     showDialog(
       context: context,
@@ -58,18 +59,21 @@ class _AdminScreenState extends State<AdminScreen> {
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () async {
               Navigator.pop(context);
+
+              // Capturar referencias ANTES del await
+              final messenger = ScaffoldMessenger.of(context);
               final provider = Provider.of<UsuarioProvider>(context, listen: false);
+
               final ok = await provider.eliminarUsuario(usuario.idUsuario!);
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      ok ? 'Usuario eliminado' : provider.error ?? 'Error al eliminar',
-                    ),
-                    backgroundColor: ok ? Colors.green : Colors.red,
+
+              messenger.showSnackBar(
+                SnackBar(
+                  content: Text(
+                    ok ? 'Usuario eliminado' : provider.error ?? 'Error al eliminar',
                   ),
-                );
-              }
+                  backgroundColor: ok ? Colors.green : Colors.red,
+                ),
+              );
             },
             child: const Text('Eliminar', style: TextStyle(color: Colors.white)),
           ),
@@ -270,7 +274,11 @@ class _FormularioUsuarioState extends State<_FormularioUsuario> {
 
   int _rolSeleccionado = 2;
   int? _orgSeleccionada;
-  int? _depSeleccionado;
+
+  // FIX #2: usar -1 como centinela para "sin departamento"
+  // así evitamos tener value: null en un DropdownButton<int>
+  static const int _sinDepartamento = -1;
+  int _depSeleccionado = _sinDepartamento;
 
   bool _guardando = false;
   bool _verPassword = false;
@@ -287,7 +295,8 @@ class _FormularioUsuarioState extends State<_FormularioUsuario> {
       _apellidoCtrl.text = u.apellidoP;
       _emailCtrl.text = u.emailUsuario;
       _rolSeleccionado = u.rol?['idRol'] ?? 2;
-      _depSeleccionado = u.departamento?['idDepartamento'];
+      // Si tiene departamento usa su id, si no usa el centinela
+      _depSeleccionado = u.departamento?['idDepartamento'] ?? _sinDepartamento;
     }
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -302,16 +311,24 @@ class _FormularioUsuarioState extends State<_FormularioUsuario> {
       }
 
       orgProvider.cargarOrganizaciones().then((_) {
-        if (mounted) {
-          final orgId = _esEdicion
-              ? (widget.usuarioEditar?.organizacion?['idOrganizacion'] as int?)
-              : null;
-          setState(() => _orgSeleccionada = orgId);
+        if (!mounted) return;
 
-          // Cargar departamentos de la org del usuario a editar
-          if (orgId != null) {
-            depProvider.cargarPorOrganizacion(orgId);
-          }
+        final orgId = _esEdicion
+            ? (widget.usuarioEditar?.organizacion?['idOrganizacion'] as int?)
+            : null;
+        setState(() => _orgSeleccionada = orgId);
+
+        if (orgId != null) {
+          // FIX #3: después de cargar departamentos, validar que el depSeleccionado
+          // esté en la lista; si no, resetear al centinela
+          depProvider.cargarPorOrganizacion(orgId).then((_) {
+            if (!mounted) return;
+            final existeEnLista = depProvider.departamentos
+                .any((d) => d.idDepartamento == _depSeleccionado);
+            if (!existeEnLista) {
+              setState(() => _depSeleccionado = _sinDepartamento);
+            }
+          });
         }
       });
     });
@@ -353,6 +370,9 @@ class _FormularioUsuarioState extends State<_FormularioUsuario> {
     setState(() => _guardando = true);
     final provider = Provider.of<UsuarioProvider>(context, listen: false);
 
+    // FIX #4: convertir centinela -1 a null al guardar
+    final depIdParaGuardar = _depSeleccionado == _sinDepartamento ? null : _depSeleccionado;
+
     final usuario = UsuarioModel(
       idUsuario: _esEdicion ? widget.usuarioEditar!.idUsuario : null,
       nombre: _nombreCtrl.text.trim(),
@@ -368,7 +388,7 @@ class _FormularioUsuarioState extends State<_FormularioUsuario> {
       fechaCreacion: DateTime.now().toIso8601String().substring(0, 10),
       rol: {'idRol': _rolSeleccionado},
       organizacion: {'idOrganizacion': _orgSeleccionada},
-      departamento: _depSeleccionado != null ? {'idDepartamento': _depSeleccionado} : null,
+      departamento: depIdParaGuardar != null ? {'idDepartamento': depIdParaGuardar} : null,
     );
 
     bool ok;
@@ -381,8 +401,10 @@ class _FormularioUsuarioState extends State<_FormularioUsuario> {
     setState(() => _guardando = false);
 
     if (mounted) {
+      // Capturar messenger ANTES del Navigator.pop
+      final messenger = ScaffoldMessenger.of(context);
       Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
+      messenger.showSnackBar(
         SnackBar(
           content: Text(
             ok
@@ -481,9 +503,8 @@ class _FormularioUsuarioState extends State<_FormularioUsuario> {
                     onChanged: (v) {
                       setState(() {
                         _orgSeleccionada = v;
-                        _depSeleccionado = null; // resetear departamento
+                        _depSeleccionado = _sinDepartamento; // resetear departamento
                       });
-                      // Cargar departamentos de la nueva organización
                       if (v != null) {
                         Provider.of<DepartamentoProvider>(context, listen: false)
                             .cargarPorOrganizacion(v);
@@ -511,11 +532,17 @@ class _FormularioUsuarioState extends State<_FormularioUsuario> {
                 : depProvider.isLoading
                     ? const Center(child: Padding(padding: EdgeInsets.symmetric(vertical: 12), child: CircularProgressIndicator(strokeWidth: 2)))
                     : _DropdownField<int>(
-                        value: _depSeleccionado,
+                        // FIX #5: validar que el value exista en los items antes de asignarlo
+                        value: depProvider.departamentos.any(
+                          (d) => d.idDepartamento == _depSeleccionado,
+                        )
+                            ? _depSeleccionado
+                            : _sinDepartamento,
                         hint: 'Sin departamento asignado',
                         items: [
+                          // FIX #6: usar -1 en vez de null para evitar el crash del Dropdown
                           const DropdownMenuItem<int>(
-                            value: null,
+                            value: _sinDepartamento,
                             child: Text('Sin departamento', style: TextStyle(color: Colors.grey)),
                           ),
                           ...depProvider.departamentos.map(
@@ -525,7 +552,7 @@ class _FormularioUsuarioState extends State<_FormularioUsuario> {
                             ),
                           ),
                         ],
-                        onChanged: (v) => setState(() => _depSeleccionado = v),
+                        onChanged: (v) => setState(() => _depSeleccionado = v ?? _sinDepartamento),
                       ),
             const SizedBox(height: 12),
 

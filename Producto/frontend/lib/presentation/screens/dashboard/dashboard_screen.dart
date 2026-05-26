@@ -41,11 +41,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
         final esAdmin = provider.esAdmin;
         final nombre = usuario?.nombre ?? 'Usuario';
         final rolNombre = usuario?.rol?['nombre'] ?? 'Usuario';
+        final apellido = usuario?.apellidoP ?? '';
         final iniciales = nombre.isNotEmpty
             ? nombre[0].toUpperCase() +
-                  (usuario?.apellidoP?.isNotEmpty == true
-                      ? usuario!.apellidoP[0].toUpperCase()
-                      : '')
+                  (apellido.isNotEmpty ? apellido[0].toUpperCase() : '')
             : 'US';
 
         final safeIndex = _currentIndex > (esAdmin ? 4 : 3) ? 0 : _currentIndex;

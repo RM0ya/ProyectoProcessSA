@@ -7,15 +7,24 @@ class UsuarioProvider extends ChangeNotifier {
   final UsuarioService _service = UsuarioService();
 
   List<UsuarioModel> usuarios = [];
-  UsuarioModel? usuarioLogueado;
   bool isLoading = false;
   String? error;
 
-  // ── NUEVO: expone el token para otros providers ──
+  // FIX: campo privado con getter y setter para poder notificar desde afuera
+  UsuarioModel? _usuarioLogueado;
+
+  UsuarioModel? get usuarioLogueado => _usuarioLogueado;
+
+  set usuarioLogueado(UsuarioModel? u) {
+    _usuarioLogueado = u;
+    notifyListeners();
+  }
+
+  // Expone el token para otros providers
   String? get token => _service.token;
 
   bool get esAdmin =>
-      usuarioLogueado?.rol?['nombre']?.toString().toLowerCase() == 'admin';
+      _usuarioLogueado?.rol?['nombre']?.toString().toLowerCase() == 'admin';
 
   Future<void> cargarUsuarios() async {
     isLoading = true;
@@ -38,8 +47,8 @@ class UsuarioProvider extends ChangeNotifier {
       print('RESPUESTA LOGIN: $data');
       isLoading = false;
       if (data != null && data['usuario'] != null) {
-        usuarioLogueado = UsuarioModel.fromJson(data['usuario']);
-        print('ROL USUARIO: ${usuarioLogueado?.rol}');
+        _usuarioLogueado = UsuarioModel.fromJson(data['usuario']);
+        print('ROL USUARIO: ${_usuarioLogueado?.rol}');
         print('ES ADMIN: $esAdmin');
         notifyListeners();
         return true;
@@ -61,8 +70,8 @@ class UsuarioProvider extends ChangeNotifier {
       final data = await _service.loginGoogle(idToken);
       isLoading = false;
       if (data != null && data['usuario'] != null) {
-        usuarioLogueado = UsuarioModel.fromJson(data['usuario']);
-        print('ROL GOOGLE: ${usuarioLogueado?.rol}');
+        _usuarioLogueado = UsuarioModel.fromJson(data['usuario']);
+        print('ROL GOOGLE: ${_usuarioLogueado?.rol}');
         print('ES ADMIN GOOGLE: $esAdmin');
         notifyListeners();
         return true;
@@ -94,7 +103,7 @@ class UsuarioProvider extends ChangeNotifier {
         apellidoM: null,
         emailUsuario: email,
         password: password,
-        telefono: telefono, // ← agregar esto
+        telefono: telefono,
         intentosFallidos: 0,
         bloqueado: 'N',
         ultimoLogin: DateTime.now().toIso8601String(),
@@ -141,6 +150,10 @@ class UsuarioProvider extends ChangeNotifier {
       final actualizado = await _service.update(id, usuario);
       final idx = usuarios.indexWhere((u) => u.idUsuario == id);
       if (idx != -1) usuarios[idx] = actualizado;
+      // FIX: si el usuario que se actualizó es el logueado, actualizar también
+      if (_usuarioLogueado?.idUsuario == id) {
+        _usuarioLogueado = actualizado;
+      }
       error = null;
       isLoading = false;
       notifyListeners();
@@ -181,7 +194,7 @@ class UsuarioProvider extends ChangeNotifier {
 
   void cerrarSesion() {
     _service.clearToken();
-    usuarioLogueado = null;
+    _usuarioLogueado = null;
     usuarios = [];
     notifyListeners();
   }
