@@ -130,6 +130,19 @@ public class AdminInitializer {
                     depGestion
             );
 
+            // USUARIO NORMAL (para pruebas CP-18)
+            Usuario usuarioTest = crearUsuarioSiNoExiste(
+                    "usuario@test.cl",
+                    "Test",
+                    "Usuario",
+                    "Normal",
+                    "Prueba123",
+                    "999999998",
+                    rolUsuario,
+                    orgMer,
+                    depGestion
+            );
+
             // PROCESO BASE
             Proceso onboarding = crearProcesoSiNoExiste(
                     "Onboarding cliente B",

@@ -32,6 +32,7 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
         context,
         listen: false,
       ).usuarioLogueado;
+
       if (usuario != null) {
         _nombreController.text = usuario.nombre;
         _apellidoController.text = usuario.apellidoP;
@@ -56,6 +57,7 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
   Future<void> _guardarCambios() async {
     final provider = Provider.of<UsuarioProvider>(context, listen: false);
     final usuario = provider.usuarioLogueado;
+
     if (usuario == null) return;
 
     if (_nombreController.text.trim().isEmpty ||
@@ -83,6 +85,7 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
         );
         return;
       }
+
       if (_passwordNuevoController.text.length < 6) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -94,6 +97,7 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
         );
         return;
       }
+
       if (_passwordNuevoController.text != _passwordConfirmarController.text) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -133,17 +137,16 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
       usuarioActualizado,
     );
 
-    setState(() => _guardando = false);
-
     if (!mounted) return;
 
-    // FIX: usar solo el setter (ya llama notifyListeners internamente)
-    // se eliminó provider.notifyListeners() que causaba el error
+    setState(() => _guardando = false);
+
     if (ok) {
       provider.usuarioLogueado = usuarioActualizado;
 
       final messenger = ScaffoldMessenger.of(context);
       Navigator.pop(context);
+
       messenger.showSnackBar(
         const SnackBar(
           content: Text('Perfil actualizado correctamente'),
@@ -184,7 +187,6 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── Avatar ──────────────────────────────────────────────────
             Center(
               child: Column(
                 children: [
@@ -246,34 +248,40 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
 
             const SizedBox(height: 16),
 
-            // ── Datos personales ─────────────────────────────────────────
             const _SeccionTitulo(titulo: 'Datos personales'),
+
             _CampoTexto(
+              fieldKey: const Key('editarPerfilNombreField'),
               label: 'Nombre',
               controller: _nombreController,
               icono: Icons.person_outline,
               tipo: TextInputType.name,
             ),
+
             _CampoTexto(
+              fieldKey: const Key('editarPerfilApellidoField'),
               label: 'Apellido',
               controller: _apellidoController,
               icono: Icons.person_outline,
               tipo: TextInputType.name,
             ),
+
             _CampoTexto(
+              fieldKey: const Key('editarPerfilCorreoField'),
               label: 'Correo electrónico',
               controller: _correoController,
               icono: Icons.email_outlined,
               tipo: TextInputType.emailAddress,
             ),
+
             _CampoTexto(
+              fieldKey: const Key('editarPerfilTelefonoField'),
               label: 'Número de teléfono',
               controller: _telefonoController,
               icono: Icons.phone_outlined,
               tipo: TextInputType.phone,
             ),
 
-            // Info de organización/departamento (solo lectura)
             if (usuario?.organizacion != null ||
                 usuario?.departamento != null) ...[
               const _SeccionTitulo(titulo: 'Información de la empresa'),
@@ -293,8 +301,8 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
 
             const SizedBox(height: 8),
 
-            // ── Cambiar contraseña ───────────────────────────────────────
             const _SeccionTitulo(titulo: 'Cambiar contraseña'),
+
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
@@ -314,7 +322,9 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
                 ],
               ),
             ),
+
             const SizedBox(height: 12),
+
             _CampoPassword(
               label: 'Contraseña actual',
               controller: _passwordActualController,
@@ -322,6 +332,7 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
               onToggle: () =>
                   setState(() => _verPasswordActual = !_verPasswordActual),
             ),
+
             _CampoPassword(
               label: 'Nueva contraseña',
               controller: _passwordNuevoController,
@@ -329,6 +340,7 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
               onToggle: () =>
                   setState(() => _verPasswordNuevo = !_verPasswordNuevo),
             ),
+
             _CampoPassword(
               label: 'Confirmar nueva contraseña',
               controller: _passwordConfirmarController,
@@ -340,11 +352,11 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
 
             const SizedBox(height: 24),
 
-            // ── Botones ──────────────────────────────────────────────────
             SizedBox(
               width: double.infinity,
               height: 48,
               child: ElevatedButton(
+                key: const Key('editarPerfilGuardarButton'),
                 onPressed: _guardando ? null : _guardarCambios,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF185FA5),
@@ -400,10 +412,9 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
   }
 }
 
-// ── Widgets auxiliares ───────────────────────────────────────────────────────
-
 class _SeccionTitulo extends StatelessWidget {
   final String titulo;
+
   const _SeccionTitulo({required this.titulo});
 
   @override
@@ -472,12 +483,14 @@ class _InfoReadOnly extends StatelessWidget {
 }
 
 class _CampoTexto extends StatelessWidget {
+  final Key? fieldKey;
   final String label;
   final TextEditingController controller;
   final IconData icono;
   final TextInputType tipo;
 
   const _CampoTexto({
+    this.fieldKey,
     required this.label,
     required this.controller,
     required this.icono,
@@ -489,6 +502,7 @@ class _CampoTexto extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: TextField(
+        key: fieldKey,
         controller: controller,
         keyboardType: tipo,
         decoration: InputDecoration(

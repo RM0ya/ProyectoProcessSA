@@ -29,9 +29,23 @@ class _ProcesosScreenState extends State<ProcesosScreen> {
     });
   }
 
-  Future<void> _eliminarProceso(int id) async {
-    await _service.delete(id);
-    await _refrescar();
+  Future<bool> _eliminarProceso(int id) async {
+    try {
+      await _service.delete(id);
+      await _refrescar();
+      return true;
+    } catch (e) {
+      if (!mounted) return false;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error al eliminar proceso: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+
+      return false;
+    }
   }
 
   Color _colorPorFecha(String fechaLimite) {
@@ -62,14 +76,36 @@ class _ProcesosScreenState extends State<ProcesosScreen> {
         content: Text('¿Deseas eliminar "${proceso.nombre}"?'),
         actions: [
           TextButton(
+            key: const Key('cancelarEliminarProcesoButton'),
             onPressed: () => Navigator.pop(context),
             child: const Text('Cancelar'),
           ),
           ElevatedButton(
+            key: const Key('confirmarEliminarProcesoButton'),
             onPressed: () async {
               Navigator.pop(context);
-              if (proceso.idProceso != null) {
-                await _eliminarProceso(proceso.idProceso!);
+
+              if (proceso.idProceso == null) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('No se pudo identificar el proceso'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+                return;
+              }
+
+              final ok = await _eliminarProceso(proceso.idProceso!);
+
+              if (!mounted) return;
+
+              if (ok) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Proceso eliminado correctamente'),
+                    backgroundColor: Colors.green,
+                  ),
+                );
               }
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
@@ -134,13 +170,15 @@ class _ProcesosScreenState extends State<ProcesosScreen> {
                       const SizedBox(width: 10),
                       _ResumenChip(
                         label: 'Activos',
-                        valor: '${procesos.where((p) => _estadoPorFecha(p.fechaLimite) == 'En curso').length}',
+                        valor:
+                            '${procesos.where((p) => _estadoPorFecha(p.fechaLimite) == 'En curso').length}',
                         color: Colors.green,
                       ),
                       const SizedBox(width: 10),
                       _ResumenChip(
                         label: 'Riesgo',
-                        valor: '${procesos.where((p) => _estadoPorFecha(p.fechaLimite) == 'En riesgo').length}',
+                        valor:
+                            '${procesos.where((p) => _estadoPorFecha(p.fechaLimite) == 'En riesgo').length}',
                         color: Colors.orange,
                       ),
                     ],
@@ -156,6 +194,7 @@ class _ProcesosScreenState extends State<ProcesosScreen> {
                       final color = _colorPorFecha(proceso.fechaLimite);
 
                       return GestureDetector(
+                        key: Key('procesoCard_$index'),
                         onTap: () => _abrirFormulario(proceso: proceso),
                         child: Container(
                           margin: const EdgeInsets.only(bottom: 12),
@@ -193,7 +232,11 @@ class _ProcesosScreenState extends State<ProcesosScreen> {
                               const SizedBox(height: 12),
                               Row(
                                 children: [
-                                  const Icon(Icons.calendar_today, size: 14, color: Colors.grey),
+                                  const Icon(
+                                    Icons.calendar_today,
+                                    size: 14,
+                                    color: Colors.grey,
+                                  ),
                                   const SizedBox(width: 5),
                                   Text(
                                     '${proceso.fechaInicio} → ${proceso.fechaLimite}',
@@ -204,12 +247,22 @@ class _ProcesosScreenState extends State<ProcesosScreen> {
                                   ),
                                   const Spacer(),
                                   IconButton(
-                                    icon: const Icon(Icons.edit, color: Color(0xFF185FA5)),
-                                    onPressed: () => _abrirFormulario(proceso: proceso),
+                                    key: Key('procesoEditarButton_$index'),
+                                    icon: const Icon(
+                                      Icons.edit,
+                                      color: Color(0xFF185FA5),
+                                    ),
+                                    onPressed: () =>
+                                        _abrirFormulario(proceso: proceso),
                                   ),
                                   IconButton(
-                                    icon: const Icon(Icons.delete_outline, color: Colors.red),
-                                    onPressed: () => _confirmarEliminar(proceso),
+                                    key: Key('procesoEliminarButton_$index'),
+                                    icon: const Icon(
+                                      Icons.delete_outline,
+                                      color: Colors.red,
+                                    ),
+                                    onPressed: () =>
+                                        _confirmarEliminar(proceso),
                                   ),
                                 ],
                               ),
@@ -226,6 +279,7 @@ class _ProcesosScreenState extends State<ProcesosScreen> {
         },
       ),
       floatingActionButton: FloatingActionButton(
+        key: const Key('nuevoProcesoButton'),
         backgroundColor: const Color(0xFF185FA5),
         onPressed: () => _abrirFormulario(),
         child: const Icon(Icons.add, color: Colors.white),
@@ -268,8 +322,10 @@ class _CrearEditarProcesoScreenState extends State<CrearEditarProcesoScreen> {
       _fechaInicioController.text = p.fechaInicio;
       _fechaLimiteController.text = p.fechaLimite;
     } else {
-      _fechaInicioController.text =
-          DateTime.now().toIso8601String().split('T').first;
+      _fechaInicioController.text = DateTime.now()
+          .toIso8601String()
+          .split('T')
+          .first;
     }
   }
 
@@ -311,7 +367,8 @@ class _CrearEditarProcesoScreenState extends State<CrearEditarProcesoScreen> {
         fechaInicio: _fechaInicioController.text.trim(),
         fechaLimite: _fechaLimiteController.text.trim(),
         fechaCreacion:
-            widget.proceso?.fechaCreacion ?? DateTime.now().toIso8601String().split('T').first,
+            widget.proceso?.fechaCreacion ??
+            DateTime.now().toIso8601String().split('T').first,
       );
 
       if (_editando) {
@@ -351,10 +408,12 @@ class _CrearEditarProcesoScreenState extends State<CrearEditarProcesoScreen> {
     required IconData icon,
     int maxLines = 1,
     bool calendario = false,
+    Key? fieldKey,
   }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
       child: TextField(
+        key: fieldKey,
         controller: controller,
         maxLines: maxLines,
         readOnly: calendario,
@@ -387,23 +446,27 @@ class _CrearEditarProcesoScreenState extends State<CrearEditarProcesoScreen> {
         child: Column(
           children: [
             _campo(
+              fieldKey: const Key('procesoNombreField'),
               label: 'Nombre del proceso',
               controller: _nombreController,
               icon: Icons.account_tree_outlined,
             ),
             _campo(
+              fieldKey: const Key('procesoDescripcionField'),
               label: 'Descripción',
               controller: _descripcionController,
               icon: Icons.notes,
               maxLines: 3,
             ),
             _campo(
+              fieldKey: const Key('procesoFechaInicioField'),
               label: 'Fecha inicio',
               controller: _fechaInicioController,
               icon: Icons.calendar_month,
               calendario: true,
             ),
             _campo(
+              fieldKey: const Key('procesoFechaLimiteField'),
               label: 'Fecha límite',
               controller: _fechaLimiteController,
               icon: Icons.event_available,
@@ -414,12 +477,16 @@ class _CrearEditarProcesoScreenState extends State<CrearEditarProcesoScreen> {
               width: double.infinity,
               height: 50,
               child: ElevatedButton.icon(
+                key: const Key('guardarProcesoButton'),
                 onPressed: _guardando ? null : _guardar,
                 icon: _guardando
                     ? const SizedBox(
                         width: 18,
                         height: 18,
-                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
                       )
                     : const Icon(Icons.save, color: Colors.white),
                 label: Text(
@@ -471,7 +538,10 @@ class _ResumenChip extends StatelessWidget {
                 color: color,
               ),
             ),
-            Text(label, style: const TextStyle(fontSize: 10, color: Colors.grey)),
+            Text(
+              label,
+              style: const TextStyle(fontSize: 10, color: Colors.grey),
+            ),
           ],
         ),
       ),

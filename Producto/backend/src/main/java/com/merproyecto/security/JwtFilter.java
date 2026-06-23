@@ -26,6 +26,18 @@ public class JwtFilter extends OncePerRequestFilter {
                                     FilterChain filterChain)
             throws ServletException, IOException {
 
+        String path = request.getServletPath();
+
+        if (path.startsWith("/api/reportes/")
+                || path.startsWith("/api/usuarios/login")
+                || path.startsWith("/api/usuarios/login-google")
+                || path.startsWith("/api/usuarios/crear")
+                || path.startsWith("/api/usuarios/registro-google")
+                || path.startsWith("/api/sesiones/")) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
         String authHeader = request.getHeader("Authorization");
 
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
@@ -40,6 +52,7 @@ public class JwtFilter extends OncePerRequestFilter {
                         null,
                         List.of(new SimpleGrantedAuthority("ROLE_" + rol.toUpperCase()))
                 );
+
                 SecurityContextHolder.getContext().setAuthentication(auth);
             }
         }

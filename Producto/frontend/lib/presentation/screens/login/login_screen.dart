@@ -45,6 +45,7 @@ class _LoginScreenState extends State<LoginScreen>
       vsync: this,
       duration: const Duration(milliseconds: 1200),
     );
+
     _fadeAnimation = Tween<double>(
       begin: 0,
       end: 1,
@@ -54,6 +55,7 @@ class _LoginScreenState extends State<LoginScreen>
       vsync: this,
       duration: const Duration(milliseconds: 900),
     );
+
     _slideAnimation =
         Tween<Offset>(begin: const Offset(0, 0.3), end: Offset.zero).animate(
           CurvedAnimation(parent: _slideController, curve: Curves.easeOutCubic),
@@ -63,16 +65,20 @@ class _LoginScreenState extends State<LoginScreen>
       vsync: this,
       duration: const Duration(milliseconds: 1000),
     );
+
     _logoScaleAnimation = Tween<double>(begin: 0, end: 1).animate(
       CurvedAnimation(parent: _logoController, curve: Curves.elasticOut),
     );
+
     _logoRotateAnimation = Tween<double>(
       begin: -0.1,
       end: 0,
     ).animate(CurvedAnimation(parent: _logoController, curve: Curves.easeOut));
 
     _logoController.forward();
+
     Future.delayed(const Duration(milliseconds: 300), () {
+      if (!mounted) return;
       _fadeController.forward();
       _slideController.forward();
     });
@@ -88,25 +94,33 @@ class _LoginScreenState extends State<LoginScreen>
     super.dispose();
   }
 
-  // ── Login manual con email + password ──────────────────────────────────────
+  bool _correoEsValido(String correo) {
+    final regex = RegExp(r'^[\w\.-]+@([\w-]+\.)+[\w-]{2,}$');
+    return regex.hasMatch(correo);
+  }
+
   void _loginManual() async {
-    if (_correoController.text.trim().isEmpty ||
-        _passwordController.text.trim().isEmpty) {
+    final correo = _correoController.text.trim();
+    final password = _passwordController.text.trim();
+
+    if (correo.isEmpty || password.isEmpty) {
       _mostrarError('Completa correo y contraseña');
+      return;
+    }
+
+    if (!_correoEsValido(correo)) {
+      _mostrarError('Ingresa un correo válido');
       return;
     }
 
     setState(() => _cargandoLogin = true);
 
     final provider = Provider.of<UsuarioProvider>(context, listen: false);
-    final ok = await provider.login(
-      _correoController.text.trim(),
-      _passwordController.text.trim(),
-    );
-
-    setState(() => _cargandoLogin = false);
+    final ok = await provider.login(correo, password);
 
     if (!mounted) return;
+
+    setState(() => _cargandoLogin = false);
 
     if (ok) {
       Navigator.pushReplacementNamed(context, '/dashboard');
@@ -115,42 +129,60 @@ class _LoginScreenState extends State<LoginScreen>
     }
   }
 
-  // ── Login con Google — envía idToken al backend ────────────────────────────
   void _loginConGoogle() async {
+    print('CP-05: iniciando login con Google');
     setState(() => _cargandoGoogle = true);
 
     try {
-      // 1. Autenticar con Google
+      // Cierra sesión Google anterior para obligar a elegir cuenta nuevamente
+      try {
+        await _googleSignIn.signOut();
+        await _googleSignIn.disconnect();
+        print('CP-05: sesión Google anterior cerrada');
+      } catch (e) {
+        print('CP-05: no había sesión Google previa o ya estaba cerrada');
+      }
+
       final cuenta = await _googleSignIn.signIn();
+
       if (cuenta == null) {
-        setState(() => _cargandoGoogle = false);
+        print('CP-05: usuario canceló selección de cuenta Google');
+        if (mounted) setState(() => _cargandoGoogle = false);
         return;
       }
 
-      // 2. Obtener el idToken de Google
+      print('CP-05: cuenta Google seleccionada: ${cuenta.email}');
+
       final auth = await cuenta.authentication;
       final idToken = auth.idToken;
 
+      print('CP-05: idToken recibido: ${idToken != null}');
+
       if (idToken == null) {
+        print('CP-05 ERROR: idToken es null');
         _mostrarError('No se pudo obtener el token de Google');
-        setState(() => _cargandoGoogle = false);
+        if (mounted) setState(() => _cargandoGoogle = false);
         return;
       }
 
       if (!mounted) return;
 
-      // 3. Enviar idToken al backend para verificación
       final provider = Provider.of<UsuarioProvider>(context, listen: false);
       final ok = await provider.loginConGoogle(idToken);
+
+      print('CP-05: respuesta backend login Google: $ok');
 
       if (!mounted) return;
 
       if (ok) {
+        print('CP-05 OK: login Google exitoso, navega a dashboard');
         Navigator.pushReplacementNamed(context, '/dashboard');
       } else {
+        print('CP-05 ERROR: backend rechazó login Google');
         _mostrarError('Error al iniciar sesión con Google');
       }
     } catch (e) {
+      print('CP-05 EXCEPCIÓN LOGIN GOOGLE: $e');
       if (mounted) _mostrarError('Error al iniciar sesión con Google');
     } finally {
       if (mounted) setState(() => _cargandoGoogle = false);
@@ -199,8 +231,6 @@ class _LoginScreenState extends State<LoginScreen>
                 child: Column(
                   children: [
                     const SizedBox(height: 60),
-
-
                     ScaleTransition(
                       scale: _logoScaleAnimation,
                       child: RotationTransition(
@@ -238,10 +268,7 @@ class _LoginScreenState extends State<LoginScreen>
                         ),
                       ),
                     ),
-
                     const SizedBox(height: 40),
-
-      
                     FadeTransition(
                       opacity: _fadeAnimation,
                       child: SlideTransition(
@@ -261,8 +288,8 @@ class _LoginScreenState extends State<LoginScreen>
                           ),
                           child: Column(
                             children: [
-
                               TextField(
+                                key: const Key('emailField'),
                                 controller: _correoController,
                                 keyboardType: TextInputType.emailAddress,
                                 decoration: InputDecoration(
@@ -284,9 +311,8 @@ class _LoginScreenState extends State<LoginScreen>
                                 ),
                               ),
                               const SizedBox(height: 16),
-
-               
                               TextField(
+                                key: const Key('passwordField'),
                                 controller: _passwordController,
                                 obscureText: !_verPassword,
                                 decoration: InputDecoration(
@@ -318,12 +344,11 @@ class _LoginScreenState extends State<LoginScreen>
                                 ),
                               ),
                               const SizedBox(height: 20),
-
-                 
                               SizedBox(
                                 width: double.infinity,
                                 height: 52,
                                 child: ElevatedButton(
+                                  key: const Key('loginButton'),
                                   onPressed: _cargandoLogin
                                       ? null
                                       : _loginManual,
@@ -347,10 +372,7 @@ class _LoginScreenState extends State<LoginScreen>
                                         ),
                                 ),
                               ),
-
                               const SizedBox(height: 20),
-
-                         
                               Row(
                                 children: [
                                   const Expanded(child: Divider()),
@@ -368,10 +390,7 @@ class _LoginScreenState extends State<LoginScreen>
                                   const Expanded(child: Divider()),
                                 ],
                               ),
-
                               const SizedBox(height: 20),
-
-                
                               SizedBox(
                                 width: double.infinity,
                                 height: 54,
@@ -413,10 +432,7 @@ class _LoginScreenState extends State<LoginScreen>
                                         ),
                                 ),
                               ),
-
                               const SizedBox(height: 20),
-
-                 
                               TextButton(
                                 onPressed: () => Navigator.push(
                                   context,
@@ -455,8 +471,10 @@ class _GoogleLogoPainter extends CustomPainter {
     final paint = Paint()..style = PaintingStyle.fill;
     final center = Offset(size.width / 2, size.height / 2);
     final radius = size.width / 2;
+
     paint.color = Colors.grey.shade100;
     canvas.drawCircle(center, radius, paint);
+
     paint.color = const Color(0xFFEA4335);
     canvas.drawArc(
       Rect.fromCircle(center: center, radius: radius * 0.8),
@@ -465,6 +483,7 @@ class _GoogleLogoPainter extends CustomPainter {
       true,
       paint,
     );
+
     paint.color = const Color(0xFFFBBC05);
     canvas.drawArc(
       Rect.fromCircle(center: center, radius: radius * 0.8),
@@ -473,6 +492,7 @@ class _GoogleLogoPainter extends CustomPainter {
       true,
       paint,
     );
+
     paint.color = const Color(0xFF34A853);
     canvas.drawArc(
       Rect.fromCircle(center: center, radius: radius * 0.8),
@@ -481,6 +501,7 @@ class _GoogleLogoPainter extends CustomPainter {
       true,
       paint,
     );
+
     paint.color = const Color(0xFF4285F4);
     canvas.drawArc(
       Rect.fromCircle(center: center, radius: radius * 0.8),
@@ -489,8 +510,10 @@ class _GoogleLogoPainter extends CustomPainter {
       true,
       paint,
     );
+
     paint.color = Colors.white;
     canvas.drawCircle(center, radius * 0.5, paint);
+
     paint.color = const Color(0xFF4285F4);
     canvas.drawRect(
       Rect.fromCenter(

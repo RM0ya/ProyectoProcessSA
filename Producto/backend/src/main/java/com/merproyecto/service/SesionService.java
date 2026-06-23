@@ -1,12 +1,12 @@
 package com.merproyecto.service;
 
 import com.merproyecto.model.Sesion;
+
 import java.util.List;
-import java.util.Optional;
 
 public interface SesionService {
-    List<Sesion> findAll();
-    Optional<Sesion> findById(Integer id);
-    Sesion save(Sesion entity);
-    void deleteById(Integer id);
+    Sesion iniciarSesion(Integer idUsuario, String token, String ip);
+    Sesion cerrarSesion(Integer idUsuario);
+    List<Sesion> listarPorUsuario(Integer idUsuario);
+    List<Sesion> listarTodas();
 }

@@ -39,7 +39,8 @@ public class SecurityConfig {
                                 "/api/usuarios/login",
                                 "/api/usuarios/login-google",
                                 "/api/usuarios/crear",
-                                "/api/usuarios/registro-google"
+                                "/api/usuarios/registro-google",
+                                "/api/reportes/**"
                         ).permitAll()
 
                         // USUARIOS

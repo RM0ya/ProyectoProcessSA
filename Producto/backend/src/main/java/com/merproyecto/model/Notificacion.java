@@ -9,17 +9,20 @@ import java.time.LocalDateTime;
 @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 @Entity
 @Table(name = "NOTIFICACION")
-@Data @NoArgsConstructor @AllArgsConstructor
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
 public class Notificacion {
 
     @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id_notificacion")
     private Integer idNotificacion;
 
     @Column(name = "tipo_noti", nullable = false, length = 25)
     private String tipoNoti;
 
-    @Column(name = "mensaje_noti", nullable = false, length = 50)
+    @Column(name = "mensaje_noti", nullable = false, length = 200)
     private String mensajeNoti;
 
     @Column(name = "noti_leida", nullable = false, length = 1)

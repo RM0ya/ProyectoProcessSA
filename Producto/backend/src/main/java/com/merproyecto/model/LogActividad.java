@@ -8,10 +8,13 @@ import java.time.LocalDateTime;
 @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 @Entity
 @Table(name = "LOG_ACTIVIDAD")
-@Data @NoArgsConstructor @AllArgsConstructor
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
 public class LogActividad {
 
     @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id_log")
     private Integer idLog;
 
@@ -21,10 +24,10 @@ public class LogActividad {
     @Column(name = "modulo_log", nullable = false, length = 25)
     private String moduloLog;
 
-    @Column(name = "detalle_log", nullable = false, length = 100)
+    @Column(name = "detalle_log", nullable = false, length = 200)
     private String detalleLog;
 
-    @Column(name = "ip_log", nullable = false, length = 20)
+    @Column(name = "ip_log", nullable = false, length = 45)
     private String ipLog;
 
     @Column(name = "fecha_hora", nullable = false)

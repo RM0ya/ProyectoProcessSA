@@ -34,16 +34,18 @@ class _RegistroScreenState extends State<RegistroScreen>
       vsync: this,
       duration: const Duration(milliseconds: 800),
     );
+
     _slideAnimation =
         Tween<Offset>(begin: const Offset(0, 0.2), end: Offset.zero).animate(
           CurvedAnimation(parent: _animController, curve: Curves.easeOutCubic),
         );
+
     _fadeAnimation = Tween<double>(
       begin: 0,
       end: 1,
     ).animate(CurvedAnimation(parent: _animController, curve: Curves.easeIn));
-    _animController.forward();
 
+    _animController.forward();
     _passwordController.addListener(() => setState(() {}));
   }
 
@@ -67,10 +69,12 @@ class _RegistroScreenState extends State<RegistroScreen>
       _mostrarError('Completa todos los campos obligatorios');
       return;
     }
+
     if (_passwordController.text != _confirmarController.text) {
       _mostrarError('Las contraseñas no coinciden');
       return;
     }
+
     if (!_aceptaTerminos) {
       _mostrarError('Debes aceptar los términos y condiciones');
       return;
@@ -88,30 +92,31 @@ class _RegistroScreenState extends State<RegistroScreen>
       telefono: _telefonoController.text.trim(),
     );
 
+    if (!mounted) return;
+
     setState(() => _registrando = false);
 
-    if (mounted) {
-      if (exito) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Row(
-              children: [
-                Icon(Icons.check_circle, color: Colors.white, size: 18),
-                SizedBox(width: 8),
-                Text('Cuenta creada correctamente'),
-              ],
-            ),
-            backgroundColor: const Color(0xFF639922),
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
+    if (exito) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Row(
+            children: [
+              Icon(Icons.check_circle, color: Colors.white, size: 18),
+              SizedBox(width: 8),
+              Text('Cuenta creada correctamente'),
+            ],
           ),
-        );
-        Navigator.pop(context);
-      } else {
-        _mostrarError(provider.error ?? 'Error al registrar usuario');
-      }
+          backgroundColor: const Color(0xFF639922),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      );
+
+      Navigator.pop(context);
+    } else {
+      _mostrarError(provider.error ?? 'Error al registrar usuario');
     }
   }
 
@@ -150,7 +155,6 @@ class _RegistroScreenState extends State<RegistroScreen>
               ),
             ),
           ),
-
           Positioned(
             top: -40,
             right: -40,
@@ -163,7 +167,6 @@ class _RegistroScreenState extends State<RegistroScreen>
               ),
             ),
           ),
-
           SafeArea(
             child: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -174,7 +177,6 @@ class _RegistroScreenState extends State<RegistroScreen>
                   child: Column(
                     children: [
                       const SizedBox(height: 30),
-
                       Row(
                         children: [
                           GestureDetector(
@@ -216,9 +218,7 @@ class _RegistroScreenState extends State<RegistroScreen>
                           ),
                         ],
                       ),
-
                       const SizedBox(height: 24),
-
                       Container(
                         padding: const EdgeInsets.all(24),
                         decoration: BoxDecoration(
@@ -236,11 +236,11 @@ class _RegistroScreenState extends State<RegistroScreen>
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             const _SeccionTitulo(titulo: 'Datos personales'),
-
                             Row(
                               children: [
                                 Expanded(
                                   child: _CampoReg(
+                                    keyCampo: const Key('registroNombreField'),
                                     label: 'Nombre *',
                                     controller: _nombreController,
                                     icono: Icons.person_outline,
@@ -250,6 +250,9 @@ class _RegistroScreenState extends State<RegistroScreen>
                                 const SizedBox(width: 10),
                                 Expanded(
                                   child: _CampoReg(
+                                    keyCampo: const Key(
+                                      'registroApellidoField',
+                                    ),
                                     label: 'Apellido *',
                                     controller: _apellidoController,
                                     icono: Icons.person_outline,
@@ -258,32 +261,31 @@ class _RegistroScreenState extends State<RegistroScreen>
                                 ),
                               ],
                             ),
-
                             _CampoReg(
+                              keyCampo: const Key('registroCorreoField'),
                               label: 'Correo electrónico *',
                               controller: _correoController,
                               icono: Icons.email_outlined,
                               tipo: TextInputType.emailAddress,
                             ),
-
                             _CampoReg(
+                              keyCampo: const Key('registroTelefonoField'),
                               label: 'Teléfono (opcional)',
                               controller: _telefonoController,
                               icono: Icons.phone_outlined,
                               tipo: TextInputType.phone,
                             ),
-
                             const _SeccionTitulo(titulo: 'Contraseña'),
-
                             _CampoPassword(
+                              keyCampo: const Key('registroPasswordField'),
                               label: 'Contraseña *',
                               controller: _passwordController,
                               ver: _verPassword,
                               onToggle: () =>
                                   setState(() => _verPassword = !_verPassword),
                             ),
-
                             _CampoPassword(
+                              keyCampo: const Key('registroConfirmarField'),
                               label: 'Confirmar contraseña *',
                               controller: _confirmarController,
                               ver: _verConfirmar,
@@ -291,7 +293,6 @@ class _RegistroScreenState extends State<RegistroScreen>
                                 () => _verConfirmar = !_verConfirmar,
                               ),
                             ),
-
                             Container(
                               padding: const EdgeInsets.all(10),
                               decoration: BoxDecoration(
@@ -321,10 +322,9 @@ class _RegistroScreenState extends State<RegistroScreen>
                                 ],
                               ),
                             ),
-
                             const SizedBox(height: 16),
-
                             GestureDetector(
+                              key: const Key('registroTerminosCheck'),
                               onTap: () => setState(
                                 () => _aceptaTerminos = !_aceptaTerminos,
                               ),
@@ -386,13 +386,12 @@ class _RegistroScreenState extends State<RegistroScreen>
                                 ],
                               ),
                             ),
-
                             const SizedBox(height: 20),
-
                             SizedBox(
                               width: double.infinity,
                               height: 50,
                               child: ElevatedButton(
+                                key: const Key('registroCrearCuentaButton'),
                                 onPressed: _registrando ? null : _registrar,
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: const Color(0xFF185FA5),
@@ -435,9 +434,7 @@ class _RegistroScreenState extends State<RegistroScreen>
                                       ),
                               ),
                             ),
-
                             const SizedBox(height: 14),
-
                             Center(
                               child: TextButton(
                                 onPressed: () => Navigator.pop(context),
@@ -454,7 +451,6 @@ class _RegistroScreenState extends State<RegistroScreen>
                           ],
                         ),
                       ),
-
                       const SizedBox(height: 30),
                     ],
                   ),
@@ -470,6 +466,7 @@ class _RegistroScreenState extends State<RegistroScreen>
 
 class _SeccionTitulo extends StatelessWidget {
   final String titulo;
+
   const _SeccionTitulo({required this.titulo});
 
   @override
@@ -489,12 +486,14 @@ class _SeccionTitulo extends StatelessWidget {
 }
 
 class _CampoReg extends StatelessWidget {
+  final Key? keyCampo;
   final String label;
   final TextEditingController controller;
   final IconData icono;
   final TextInputType tipo;
 
   const _CampoReg({
+    this.keyCampo,
     required this.label,
     required this.controller,
     required this.icono,
@@ -506,6 +505,7 @@ class _CampoReg extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: TextField(
+        key: keyCampo,
         controller: controller,
         keyboardType: tipo,
         decoration: InputDecoration(
@@ -537,12 +537,14 @@ class _CampoReg extends StatelessWidget {
 }
 
 class _CampoPassword extends StatelessWidget {
+  final Key? keyCampo;
   final String label;
   final TextEditingController controller;
   final bool ver;
   final VoidCallback onToggle;
 
   const _CampoPassword({
+    this.keyCampo,
     required this.label,
     required this.controller,
     required this.ver,
@@ -554,6 +556,7 @@ class _CampoPassword extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: TextField(
+        key: keyCampo,
         controller: controller,
         obscureText: !ver,
         decoration: InputDecoration(

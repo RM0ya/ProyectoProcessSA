@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../../data/providers/usuario_provider.dart';
 import '../editar_perfil/editar_perfil_screen.dart';
 import '../notificaciones/notificaciones_config_screen.dart';
+import '../reportes/reportes_screen.dart';
 
 class PerfilScreen extends StatelessWidget {
   const PerfilScreen({super.key});
@@ -14,35 +15,74 @@ class PerfilScreen extends StatelessWidget {
     return '$n$a'.toUpperCase();
   }
 
+  Future<void> _confirmarLogout(
+    BuildContext context,
+    UsuarioProvider provider,
+  ) async {
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Cerrar sesión'),
+        content: const Text('¿Deseas cerrar sesión?'),
+        actions: [
+          TextButton(
+            key: const Key('cancelarLogoutButton'),
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            key: const Key('confirmarLogoutButton'),
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text(
+              'Confirmar',
+              style: TextStyle(color: Colors.white),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmar != true) return;
+
+    await provider.cerrarSesion();
+
+    if (!context.mounted) return;
+    Navigator.pushReplacementNamed(context, '/login');
+  }
+
   @override
   Widget build(BuildContext context) {
     final provider = Provider.of<UsuarioProvider>(context);
     final usuario = provider.usuarioLogueado;
 
     if (usuario == null) {
-      return const Scaffold(
-        body: Center(
-          child: Text('No hay usuario conectado'),
+      return Scaffold(
+        appBar: AppBar(
+          leading: const BackButton(),
+          title: const Text('Perfil', style: TextStyle(color: Colors.white)),
+          backgroundColor: const Color(0xFF185FA5),
+          iconTheme: const IconThemeData(color: Colors.white),
         ),
+        body: const Center(child: Text('No hay usuario conectado')),
       );
     }
 
-    final nombreCompleto =
-        '${usuario.nombre} ${usuario.apellidoP}'.trim();
-
+    final nombreCompleto = '${usuario.nombre} ${usuario.apellidoP}'.trim();
     final rol = usuario.rol?['nombre']?.toString() ?? 'Usuario';
-
     final organizacion =
         usuario.organizacion?['nombre']?.toString() ?? 'Sin organización';
-
     final departamento =
         usuario.departamento?['nombre']?.toString() ?? 'Sin departamento';
 
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
+        leading: const BackButton(),
+        automaticallyImplyLeading: true,
         title: const Text('Perfil', style: TextStyle(color: Colors.white)),
         backgroundColor: const Color(0xFF185FA5),
+        iconTheme: const IconThemeData(color: Colors.white),
         actions: [
           IconButton(
             icon: const Icon(Icons.edit_outlined, color: Colors.white),
@@ -136,9 +176,7 @@ class PerfilScreen extends StatelessWidget {
                 ],
               ),
             ),
-
             const SizedBox(height: 12),
-
             Container(
               color: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -154,11 +192,7 @@ class PerfilScreen extends StatelessWidget {
                     label: 'Teléfono',
                     valor: usuario.telefono ?? 'Sin teléfono',
                   ),
-                  _InfoRow(
-                    icono: Icons.work_outline,
-                    label: 'Rol',
-                    valor: rol,
-                  ),
+                  _InfoRow(icono: Icons.work_outline, label: 'Rol', valor: rol),
                   _InfoRow(
                     icono: Icons.business_outlined,
                     label: 'Organización',
@@ -177,15 +211,14 @@ class PerfilScreen extends StatelessWidget {
                 ],
               ),
             ),
-
             const SizedBox(height: 12),
-
             Container(
               color: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Column(
                 children: [
                   GestureDetector(
+                    behavior: HitTestBehavior.opaque,
                     onTap: () {
                       Navigator.push(
                         context,
@@ -201,27 +234,34 @@ class PerfilScreen extends StatelessWidget {
                       color: Colors.orange,
                     ),
                   ),
-                  const _MenuRow(
-                    icono: Icons.bar_chart,
-                    label: 'Reportes',
-                    color: Colors.green,
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const ReportesScreen(),
+                        ),
+                      );
+                    },
+                    child: const _MenuRow(
+                      icono: Icons.picture_as_pdf,
+                      label: 'Reportes',
+                      color: Colors.green,
+                    ),
                   ),
                 ],
               ),
             ),
-
             const SizedBox(height: 12),
-
             Padding(
               padding: const EdgeInsets.all(16),
               child: SizedBox(
                 width: double.infinity,
                 height: 48,
                 child: ElevatedButton(
-                  onPressed: () {
-                    provider.cerrarSesion();
-                    Navigator.pushReplacementNamed(context, '/login');
-                  },
+                  key: const Key('perfilLogoutButton'),
+                  onPressed: () => _confirmarLogout(context, provider),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.red.shade50,
                     foregroundColor: Colors.red,

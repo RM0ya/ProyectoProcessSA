@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import '../../../data/providers/usuario_provider.dart';
 import '../admin/admin_screen.dart';
+import '../reportes/reportes_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -13,8 +15,64 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   int _currentIndex = 0;
 
+  Future<void> _confirmarLogout(UsuarioProvider provider) async {
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Cerrar sesión'),
+        content: const Text('¿Deseas cerrar sesión?'),
+        actions: [
+          TextButton(
+            key: const Key('cancelarLogoutButton'),
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            key: const Key('confirmarLogoutButton'),
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text(
+              'Confirmar',
+              style: TextStyle(color: Colors.white),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmar != true) return;
+
+    await provider.cerrarSesion();
+
+    if (!mounted) return;
+    Navigator.pushReplacementNamed(context, '/login');
+  }
+
   void _onItemTapped(int index, bool esAdmin) {
-    if (esAdmin && index == 4) {
+    if (index == 1) {
+      Navigator.pushNamed(context, '/tareas');
+      return;
+    }
+
+    if (index == 2) {
+      Navigator.pushNamed(context, '/procesos');
+      return;
+    }
+
+    if (index == 3) {
+      Navigator.pushNamed(context, '/perfil');
+      return;
+    }
+
+    if (index == 4) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const ReportesScreen()),
+      );
+      return;
+    }
+
+    if (esAdmin && index == 5) {
       Navigator.push(
         context,
         MaterialPageRoute(builder: (_) => const AdminScreen()),
@@ -23,14 +81,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
 
     setState(() => _currentIndex = index);
-
-    if (index == 1) {
-      Navigator.pushNamed(context, '/tareas');
-    } else if (index == 2) {
-      Navigator.pushNamed(context, '/procesos');
-    } else if (index == 3) {
-      Navigator.pushNamed(context, '/perfil');
-    }
   }
 
   @override
@@ -47,7 +97,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   (apellido.isNotEmpty ? apellido[0].toUpperCase() : '')
             : 'US';
 
-        final safeIndex = _currentIndex > (esAdmin ? 4 : 3) ? 0 : _currentIndex;
+        final safeIndex = _currentIndex > (esAdmin ? 5 : 4) ? 0 : _currentIndex;
 
         return Scaffold(
           backgroundColor: Colors.grey[50],
@@ -66,12 +116,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
               const SizedBox(width: 8),
               IconButton(
+                key: const Key('dashboardLogoutButton'),
                 icon: const Icon(Icons.logout, color: Colors.white),
                 tooltip: 'Cerrar sesión',
-                onPressed: () {
-                  provider.cerrarSesion();
-                  Navigator.pushReplacementNamed(context, '/login');
-                },
+                onPressed: () => _confirmarLogout(provider),
               ),
             ],
           ),
@@ -91,7 +139,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   '$rolNombre · Process SA',
                   style: const TextStyle(color: Colors.grey),
                 ),
-
                 if (esAdmin) ...[
                   const SizedBox(height: 8),
                   Container(
@@ -123,9 +170,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ),
                   ),
                 ],
-
                 const SizedBox(height: 20),
-
+                _QuickActionCard(
+                  icono: Icons.picture_as_pdf,
+                  titulo: esAdmin
+                      ? 'Generar reporte general'
+                      : 'Generar mi reporte',
+                  subtitulo: esAdmin
+                      ? 'Descarga el PDF con todas las tareas de la organización'
+                      : 'Descarga el PDF solo con tus tareas asignadas',
+                  color: Colors.red,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const ReportesScreen()),
+                    );
+                  },
+                ),
+                const SizedBox(height: 20),
                 GridView.count(
                   crossAxisCount: 2,
                   shrinkWrap: true,
@@ -157,13 +219,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ],
                 ),
                 const SizedBox(height: 24),
-
                 const Text(
                   'Tareas recientes',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                 ),
                 const SizedBox(height: 12),
-
                 _TareaItem(
                   titulo: 'Revisión contrato cliente A',
                   estado: 'En curso',
@@ -182,10 +242,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ],
             ),
           ),
-
           bottomNavigationBar: BottomNavigationBar(
             type: BottomNavigationBarType.fixed,
             selectedItemColor: const Color(0xFF185FA5),
+            unselectedItemColor: Colors.grey,
             currentIndex: safeIndex,
             onTap: (i) => _onItemTapped(i, esAdmin),
             items: esAdmin
@@ -205,6 +265,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     BottomNavigationBarItem(
                       icon: Icon(Icons.person),
                       label: 'Perfil',
+                    ),
+                    BottomNavigationBarItem(
+                      icon: Icon(Icons.picture_as_pdf),
+                      label: 'Reportes',
                     ),
                     BottomNavigationBarItem(
                       icon: Icon(Icons.admin_panel_settings),
@@ -228,10 +292,83 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       icon: Icon(Icons.person),
                       label: 'Perfil',
                     ),
+                    BottomNavigationBarItem(
+                      icon: Icon(Icons.picture_as_pdf),
+                      label: 'Reportes',
+                    ),
                   ],
           ),
         );
       },
+    );
+  }
+}
+
+class _QuickActionCard extends StatelessWidget {
+  final IconData icono;
+  final String titulo;
+  final String subtitulo;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _QuickActionCard({
+    required this.icono,
+    required this.titulo,
+    required this.subtitulo,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: Colors.grey.shade200),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icono, color: color),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      titulo,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      subtitulo,
+                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right, color: Colors.grey),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -327,3 +464,4 @@ class _TareaItem extends StatelessWidget {
     );
   }
 }
+  

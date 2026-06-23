@@ -1,36 +1,58 @@
 package com.merproyecto.service.impl;
 
 import com.merproyecto.model.Sesion;
+import com.merproyecto.model.Usuario;
 import com.merproyecto.repository.SesionRepository;
+import com.merproyecto.repository.UsuarioRepository;
 import com.merproyecto.service.SesionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
 public class SesionServiceImpl implements SesionService {
 
-    private final SesionRepository repository;
+    private final SesionRepository sesionRepository;
+    private final UsuarioRepository usuarioRepository;
 
     @Override
-    public List<Sesion> findAll() {
-        return repository.findAll();
+    public Sesion iniciarSesion(Integer idUsuario, String token, String ip) {
+        Usuario usuario = usuarioRepository.findById(idUsuario)
+                .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
+
+        Sesion sesion = new Sesion();
+        sesion.setUsuario(usuario);
+        sesion.setToken(token);
+        sesion.setIpOrigen(ip);
+        sesion.setFechaInicioS(LocalDateTime.now());
+        sesion.setTipoEvento("LOGIN");
+        sesion.setFechaFinS(null);
+
+        return sesionRepository.save(sesion);
     }
 
     @Override
-    public Optional<Sesion> findById(Integer id) {
-        return repository.findById(id);
+    public Sesion cerrarSesion(Integer idUsuario) {
+        Sesion sesion = sesionRepository
+                .findTopByUsuarioIdUsuarioAndFechaFinSIsNullOrderByFechaInicioSDesc(idUsuario)
+                .orElseThrow(() -> new RuntimeException("No hay sesión activa"));
+
+        sesion.setFechaFinS(LocalDateTime.now());
+        sesion.setTipoEvento("LOGOUT");
+
+        return sesionRepository.save(sesion);
     }
 
     @Override
-    public Sesion save(Sesion entity) {
-        return repository.save(entity);
+    public List<Sesion> listarPorUsuario(Integer idUsuario) {
+        return sesionRepository.findByUsuarioIdUsuarioOrderByFechaInicioSDesc(idUsuario);
     }
-
     @Override
-    public void deleteById(Integer id) {
-        repository.deleteById(id);
+    public List<Sesion> listarTodas() {
+        return sesionRepository.findAllByOrderByFechaInicioSDesc();
     }
 }

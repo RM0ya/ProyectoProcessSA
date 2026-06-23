@@ -183,6 +183,7 @@ class _CrearTareaScreenState extends State<CrearTareaScreen> {
               child: Column(
                 children: [
                   _CampoTexto(
+                    fieldKey: const Key('crearTareaTituloField'),
                     label: 'Título de la tarea',
                     controller: _tituloController,
                     icono: Icons.task_outlined,
@@ -190,6 +191,7 @@ class _CrearTareaScreenState extends State<CrearTareaScreen> {
                   ),
 
                   _CampoTexto(
+                    fieldKey: const Key('crearTareaDescripcionField'),
                     label: 'Descripción',
                     controller: _descripcionController,
                     icono: Icons.notes,
@@ -198,6 +200,7 @@ class _CrearTareaScreenState extends State<CrearTareaScreen> {
                   ),
 
                   _DropdownProceso(
+                    dropdownKey: const Key('crearTareaProcesoDropdown'),
                     procesos: _procesos,
                     procesoSeleccionado: _procesoSeleccionado,
                     onChanged: (value) {
@@ -206,6 +209,7 @@ class _CrearTareaScreenState extends State<CrearTareaScreen> {
                   ),
 
                   _CampoTexto(
+                    fieldKey: const Key('crearTareaFechaField'),
                     label: 'Fecha límite',
                     controller: _fechaController,
                     icono: Icons.calendar_today,
@@ -220,6 +224,7 @@ class _CrearTareaScreenState extends State<CrearTareaScreen> {
                     width: double.infinity,
                     height: 48,
                     child: ElevatedButton(
+                      key: const Key('crearTareaButton'),
                       onPressed: _guardando ? null : _crearTarea,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF185FA5),
@@ -243,11 +248,13 @@ class _CrearTareaScreenState extends State<CrearTareaScreen> {
 }
 
 class _DropdownProceso extends StatelessWidget {
+  final Key? dropdownKey;
   final List<ProcesoModel> procesos;
   final ProcesoModel? procesoSeleccionado;
   final ValueChanged<ProcesoModel?> onChanged;
 
   const _DropdownProceso({
+    this.dropdownKey,
     required this.procesos,
     required this.procesoSeleccionado,
     required this.onChanged,
@@ -258,6 +265,7 @@ class _DropdownProceso extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Container(
+        key: dropdownKey,
         padding: const EdgeInsets.symmetric(horizontal: 12),
         decoration: BoxDecoration(
           color: Colors.white,
@@ -292,6 +300,7 @@ class _DropdownProceso extends StatelessWidget {
 }
 
 class _CampoTexto extends StatelessWidget {
+  final Key? fieldKey;
   final String label;
   final TextEditingController controller;
   final IconData icono;
@@ -301,6 +310,7 @@ class _CampoTexto extends StatelessWidget {
   final VoidCallback? onTap;
 
   const _CampoTexto({
+    this.fieldKey,
     required this.label,
     required this.controller,
     required this.icono,
@@ -315,6 +325,7 @@ class _CampoTexto extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: TextField(
+        key: fieldKey,
         controller: controller,
         keyboardType: tipo,
         maxLines: maxLines,

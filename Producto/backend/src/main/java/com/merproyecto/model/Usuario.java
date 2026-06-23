@@ -34,7 +34,7 @@ public class Usuario {
     private String emailUsuario;
 
     @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
-    @Column(name = "password", nullable = false, length = 50)
+    @Column(name = "password", nullable = false, length = 255)
     private String password;
 
     @Column(name = "intentos_fallidos")

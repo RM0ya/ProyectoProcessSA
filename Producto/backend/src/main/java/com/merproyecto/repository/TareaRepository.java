@@ -17,4 +17,7 @@ public interface TareaRepository extends JpaRepository<Tarea, Integer> {
     List<Tarea> findByEstado_NombreEstado(String nombreEstado);
 
     List<Tarea> findByFechaLimiteSBefore(LocalDate fecha);
+    List<Tarea> findByProcesoOrganizacionIdOrganizacionOrderByFechaCreacionTDesc(Integer idOrganizacion);
+    List<Tarea> findByUsuarioIdUsuarioOrderByFechaCreacionTDesc(Integer idUsuario);
+
 }

@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
+
 import 'crear_tarea_screen.dart';
 import 'tarea_detalle_screen.dart';
 import '../../../data/models/tarea_model.dart';
 import '../../../data/services/tarea_service.dart';
 
 class TareasScreen extends StatefulWidget {
-  const TareasScreen({super.key});
+  final Future<List<TareaModel>>? tareasFutureOverride;
+
+  const TareasScreen({super.key, this.tareasFutureOverride});
 
   @override
   State<TareasScreen> createState() => _TareasScreenState();
@@ -25,6 +28,11 @@ class _TareasScreenState extends State<TareasScreen> {
   }
 
   void _cargarTareas() {
+    if (widget.tareasFutureOverride != null) {
+      _futureTareas = widget.tareasFutureOverride!;
+      return;
+    }
+
     if (esAdmin) {
       _futureTareas = _service.getAll();
     } else {
@@ -49,10 +57,12 @@ class _TareasScreenState extends State<TareasScreen> {
       case 'completado':
         return Colors.green;
       case 'activo':
+      case 'activa':
       case 'en curso':
         return Colors.blue;
       case 'vencida':
       case 'inactivo':
+      case 'inactiva':
         return Colors.red;
       default:
         return Colors.orange;
@@ -71,6 +81,7 @@ class _TareasScreenState extends State<TareasScreen> {
       appBar: AppBar(
         title: const Text('Tareas', style: TextStyle(color: Colors.white)),
         backgroundColor: const Color(0xFF185FA5),
+        iconTheme: const IconThemeData(color: Colors.white),
       ),
       body: FutureBuilder<List<TareaModel>>(
         future: _futureTareas,
@@ -80,7 +91,9 @@ class _TareasScreenState extends State<TareasScreen> {
           }
 
           if (snapshot.hasError) {
-            return Center(child: Text('Error al cargar tareas: ${snapshot.error}'));
+            return Center(
+              child: Text('Error al cargar tareas: ${snapshot.error}'),
+            );
           }
 
           final tareas = snapshot.data ?? [];
@@ -108,9 +121,10 @@ class _TareasScreenState extends State<TareasScreen> {
                         builder: (_) => TareaDetalleScreen(tarea: tarea),
                       ),
                     );
-                    _refrescar();
+                    await _refrescar();
                   },
                   child: Container(
+                    key: Key('tareaItem_${tarea.idTarea}'),
                     margin: const EdgeInsets.only(bottom: 12),
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
@@ -136,9 +150,18 @@ class _TareasScreenState extends State<TareasScreen> {
                           ],
                         ),
                         const SizedBox(height: 6),
-                        Text(proceso, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                        Text(
+                          proceso,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey,
+                          ),
+                        ),
                         const SizedBox(height: 8),
-                        Text(tarea.descripcionT, style: const TextStyle(fontSize: 13)),
+                        Text(
+                          tarea.descripcionT,
+                          style: const TextStyle(fontSize: 13),
+                        ),
                         const SizedBox(height: 12),
                         Row(
                           children: [
@@ -155,12 +178,30 @@ class _TareasScreenState extends State<TareasScreen> {
                               ),
                             ),
                             const SizedBox(width: 8),
-                            Text(usuario, style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                            const Spacer(),
-                            Text(tarea.fechaLimiteS, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                            Expanded(
+                              child: Text(
+                                usuario,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            Text(
+                              tarea.fechaLimiteS,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey,
+                              ),
+                            ),
                             const SizedBox(width: 10),
                             IconButton(
-                              icon: const Icon(Icons.delete_outline, color: Colors.red),
+                              key: Key('eliminarTarea_${tarea.idTarea}'),
+                              icon: const Icon(
+                                Icons.delete_outline,
+                                color: Colors.red,
+                              ),
                               onPressed: () {
                                 if (tarea.idTarea != null) {
                                   _eliminarTarea(tarea.idTarea!);
@@ -179,6 +220,7 @@ class _TareasScreenState extends State<TareasScreen> {
         },
       ),
       floatingActionButton: FloatingActionButton(
+        key: const Key('crearTareaFab'),
         backgroundColor: const Color(0xFF185FA5),
         child: const Icon(Icons.add, color: Colors.white),
         onPressed: () async {
@@ -186,7 +228,7 @@ class _TareasScreenState extends State<TareasScreen> {
             context,
             MaterialPageRoute(builder: (_) => const CrearTareaScreen()),
           );
-          _refrescar();
+          await _refrescar();
         },
       ),
     );
@@ -202,6 +244,7 @@ class _Badge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
+      key: Key('estadoBadge_$label'),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: color.withOpacity(0.12),
