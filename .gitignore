@@ -1,0 +1,9 @@
+**/build/
+**/.dart_tool/
+**/.idea/
+**/.gradle/
+**/target/
+**/local.properties
+*.zip
+*.txt
+!README.md
