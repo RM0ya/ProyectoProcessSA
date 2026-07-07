@@ -3,16 +3,15 @@ package com.merproyecto.model;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.*;
-
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 @Entity
 @Table(name = "TAREA")
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
+@Getter @Setter @NoArgsConstructor @AllArgsConstructor
+@ToString(exclude = {"proceso", "usuario", "estado"})
+@EqualsAndHashCode(exclude = {"proceso", "usuario", "estado"})
 public class Tarea {
 
     @Id
@@ -22,7 +21,6 @@ public class Tarea {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "id_proceso", nullable = false)
-    @JsonIgnoreProperties({"tareas", "hibernateLazyInitializer", "handler"})
     private Proceso proceso;
 
     @Column(name = "nombre_tarea", nullable = false, length = 30)
@@ -45,11 +43,9 @@ public class Tarea {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "id_usuario", nullable = false)
-    @JsonIgnoreProperties({"tareas", "password", "hibernateLazyInitializer", "handler"})
     private Usuario usuario;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "id_estado", nullable = false)
-    @JsonIgnoreProperties({"tareas", "procesos", "hibernateLazyInitializer", "handler"})
     private Estado estado;
 }

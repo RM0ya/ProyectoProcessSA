@@ -4,12 +4,12 @@ import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
 import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.client.json.gson.GsonFactory;
-import com.merproyecto.model.Organizacion;
 import com.merproyecto.model.Rol;
 import com.merproyecto.model.Usuario;
 import com.merproyecto.repository.OrganizacionRepository;
 import com.merproyecto.repository.RolRepository;
 import com.merproyecto.security.JwtUtil;
+import com.merproyecto.service.NotificacionService;
 import com.merproyecto.service.UsuarioService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.*;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -32,6 +33,7 @@ public class AuthController {
     private final PasswordEncoder passwordEncoder;
     private final RolRepository rolRepository;
     private final OrganizacionRepository organizacionRepository;
+    private final NotificacionService notificacionService;
 
     private static final String GOOGLE_CLIENT_ID =
             "986429467737-333gr9k40rds0m9nod84v0or8s7833d1.apps.googleusercontent.com";
@@ -105,6 +107,24 @@ public class AuthController {
                         nombre != null ? nombre : "Usuario",
                         apellido != null ? apellido : ""
                 );
+
+                // Notificar a los superadmin, igual que en el registro manual
+                try {
+                    List<Usuario> superadmins = usuarioService.findByRolNombre("SuperAdmin");
+                    String mensaje = "Nuevo usuario registrado con Google: " + usuario.getNombre() + " "
+                            + usuario.getApellidoP() + " (" + usuario.getEmailUsuario()
+                            + ") está pendiente de asignación de organización.";
+
+                    for (Usuario superadmin : superadmins) {
+                        notificacionService.crearParaUsuario(
+                                superadmin,
+                                "REGISTRO_PENDIENTE",
+                                mensaje
+                        );
+                    }
+                } catch (Exception e) {
+                    System.out.println("ERROR AL CREAR NOTIFICACION DE REGISTRO GOOGLE: " + e.getMessage());
+                }
             }
 
             String rol = usuario.getRol() != null
@@ -129,7 +149,7 @@ public class AuthController {
         return passwordEncoder.encode("123456");
     }
 
-    // ───────────────── CREAR USUARIO ─────────────────
+    // ───────────────── CREAR USUARIO (REGISTRO PÚBLICO) ─────────────────
     @PostMapping("/crear")
     public ResponseEntity<?> crearUsuario(@RequestBody Usuario usuario) {
 
@@ -153,15 +173,40 @@ public class AuthController {
                 .orElseThrow(() -> new RuntimeException("Rol no encontrado"));
         usuario.setRol(rol);
 
-        Organizacion org = organizacionRepository.findById(1)
-                .orElseThrow(() -> new RuntimeException("Organización no encontrada"));
-        usuario.setOrganizacion(org);
+        // Ya no se asigna una organización por defecto (antes era siempre
+        // id=1 / "Mi Empresa"). Un usuario que se autorregistra no debe
+        // quedar vinculado a ninguna organización hasta que un superadmin
+        // se la asigne explícitamente. Se fuerza a null sin importar lo
+        // que haya llegado en el body, por seguridad: el registro público
+        // nunca debe poder autoasignarse una organización.
+        usuario.setOrganizacion(null);
 
         System.out.println("PASSWORD ANTES DE SAVE: " + usuario.getPassword());
 
         Usuario nuevo = usuarioService.save(usuario);
 
         System.out.println("PASSWORD DESPUES DE SAVE: " + nuevo.getPassword());
+
+        // Notificar a todos los superadmin para que asignen organización
+        // al usuario recién registrado.
+        try {
+            List<Usuario> superadmins = usuarioService.findByRolNombre("SuperAdmin");
+            String mensaje = "Nuevo usuario registrado: " + nuevo.getNombre() + " "
+                    + nuevo.getApellidoP() + " (" + nuevo.getEmailUsuario()
+                    + ") está pendiente de asignación de organización.";
+
+            for (Usuario superadmin : superadmins) {
+                notificacionService.crearParaUsuario(
+                        superadmin,
+                        "REGISTRO_PENDIENTE",
+                        mensaje
+                );
+            }
+        } catch (Exception e) {
+            // No se debe romper el registro del usuario si falla la
+            // creación de la notificación; solo se deja registrado en log.
+            System.out.println("ERROR AL CREAR NOTIFICACION DE REGISTRO: " + e.getMessage());
+        }
 
         return ResponseEntity.ok(Map.of(
                 "mensaje", "Usuario creado correctamente",

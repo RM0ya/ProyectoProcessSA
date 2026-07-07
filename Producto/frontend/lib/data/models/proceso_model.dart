@@ -5,6 +5,9 @@ class ProcesoModel {
   final String fechaInicio;
   final String fechaLimite;
   final String fechaCreacion;
+  final int? idOrganizacion;
+  final int idEstado; // NUEVO
+  final String? nombreEstado; // NUEVO
 
   ProcesoModel({
     this.idProceso,
@@ -13,6 +16,9 @@ class ProcesoModel {
     required this.fechaInicio,
     required this.fechaLimite,
     required this.fechaCreacion,
+    this.idOrganizacion,
+    this.idEstado = 1, // Activo por defecto al crear
+    this.nombreEstado,
   });
 
   factory ProcesoModel.fromJson(Map<String, dynamic> json) {
@@ -23,6 +29,9 @@ class ProcesoModel {
       fechaInicio: json['fechaInicio'] ?? '',
       fechaLimite: json['fechaLimite'] ?? '',
       fechaCreacion: json['fechaCreacion'] ?? '',
+      idOrganizacion: json['organizacion']?['idOrganizacion'],
+      idEstado: json['estado']?['idEstado'] ?? 1,
+      nombreEstado: json['estado']?['nombreEstado'],
     );
   }
 
@@ -34,9 +43,9 @@ class ProcesoModel {
       'fechaInicio': fechaInicio,
       'fechaLimite': fechaLimite,
       'fechaCreacion': fechaCreacion,
-      'organizacion': {'idOrganizacion': 1},
+      'organizacion': {'idOrganizacion': idOrganizacion ?? 1},
       'kpi': {'idKpi': 1},
-      'estado': {'idEstado': 1},
+      'estado': {'idEstado': idEstado},
     };
   }
 }

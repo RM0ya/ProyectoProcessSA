@@ -8,8 +8,10 @@ import com.merproyecto.repository.RolRepository;
 import com.merproyecto.repository.UsuarioRepository;
 import com.merproyecto.service.UsuarioService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -31,6 +33,16 @@ public class UsuarioServiceImpl implements UsuarioService {
     }
 
     @Override
+    public List<Usuario> findByOrganizacion(Integer idOrganizacion) {
+        return repository.findByOrganizacion_IdOrganizacion(idOrganizacion);
+    }
+
+    @Override
+    public List<Usuario> findByRolNombre(String nombreRol) {
+        return repository.findByRol_NombreIgnoreCase(nombreRol);
+    }
+
+    @Override
     public Optional<Usuario> findById(Integer id) {
         return repository.findById(id);
     }
@@ -41,8 +53,18 @@ public class UsuarioServiceImpl implements UsuarioService {
     }
 
     @Override
-    public Usuario save(Usuario entity) {
+    public Usuario crearUsuario(Usuario nuevoUsuario, Usuario creador) {
+        // Validar si intentan asignar rol 3 (SuperAdmin)
+        if (nuevoUsuario.getRol() != null && nuevoUsuario.getRol().getIdRol() == 3) {
+            if (creador == null || creador.getRol() == null || creador.getRol().getIdRol() != 3) {
+                throw new AccessDeniedException("No autorizado: Solo un Super Admin puede crear otro Super Admin.");
+            }
+        }
+        return save(nuevoUsuario);
+    }
 
+    @Override
+    public Usuario save(Usuario entity) {
         if (entity.getPassword() != null &&
                 !entity.getPassword().startsWith("$2a$") &&
                 !entity.getPassword().equals("google_oauth")) {
@@ -51,29 +73,25 @@ public class UsuarioServiceImpl implements UsuarioService {
                     passwordEncoder.encode(entity.getPassword())
             );
         }
-
         return repository.save(entity);
     }
 
     @Override
+    @Transactional
     public void deleteById(Integer id) {
         repository.deleteById(id);
     }
 
     @Override
     public Usuario login(String emailUsuario, String password) {
-
-        Optional<Usuario> usuarioOpt =
-                repository.findByEmailUsuario(emailUsuario);
+        Optional<Usuario> usuarioOpt = repository.findByEmailUsuario(emailUsuario);
 
         if (usuarioOpt.isEmpty()) {
             return null;
         }
 
         Usuario usuario = usuarioOpt.get();
-
-        boolean passwordOk =
-                passwordEncoder.matches(password, usuario.getPassword());
+        boolean passwordOk = passwordEncoder.matches(password, usuario.getPassword());
 
         if (!passwordOk) {
             return null;
@@ -83,42 +101,23 @@ public class UsuarioServiceImpl implements UsuarioService {
     }
 
     @Override
-    public Usuario registrarConGoogle(
-            String email,
-            String nombre,
-            String apellido
-    ) {
-
+    public Usuario registrarConGoogle(String email, String nombre, String apellido) {
         Rol rol = rolRepository.findById(2).orElseThrow();
 
-        Organizacion org =
-                organizacionRepository.findById(1).orElseThrow();
-
         Usuario nuevo = new Usuario();
-
         nuevo.setNombre(nombre);
-
-        nuevo.setApellidoP(
-                apellido.isEmpty() ? "Usuario" : apellido
-        );
-
+        nuevo.setApellidoP(apellido.isEmpty() ? "Usuario" : apellido);
         nuevo.setEmailUsuario(email);
-
-        nuevo.setPassword(
-                passwordEncoder.encode("google_oauth_" + email)
-        );
-
+        nuevo.setPassword(passwordEncoder.encode("google_oauth_" + email));
         nuevo.setBloqueado('N');
-
         nuevo.setIntentosFallidos(0);
-
         nuevo.setUltimoLogin(LocalDateTime.now());
-
         nuevo.setFechaCreacion(LocalDate.now());
-
         nuevo.setRol(rol);
-
-        nuevo.setOrganizacion(org);
+        // CORREGIDO: ya no se asigna organización por defecto. Un usuario
+        // que se registra con Google queda igual que el registro manual:
+        // sin organización, pendiente de asignación por un Super Admin.
+        nuevo.setOrganizacion(null);
 
         return repository.save(nuevo);
     }

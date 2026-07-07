@@ -55,4 +55,14 @@ public class TareaServiceImpl implements TareaService {
     public List<Tarea> findTareasVencidas() {
         return repository.findByFechaLimiteSBefore(LocalDate.now());
     }
+
+    @Override
+    public List<Tarea> findByOrganizacion(Integer idOrganizacion) {
+        return repository.findByProcesoOrganizacionIdOrganizacionOrderByFechaCreacionTDesc(idOrganizacion);
+    }
+
+    @Override
+    public long contarTareasCreadasHoy(Integer idUsuario) {
+        return repository.countByUsuarioIdUsuarioAndFechaCreacionT(idUsuario, LocalDate.now());
+    }
 }

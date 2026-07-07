@@ -32,6 +32,7 @@ public class AdminInitializer {
             // ROLES
             Rol rolAdmin = crearRolSiNoExiste("Admin", "Administrador del sistema");
             Rol rolUsuario = crearRolSiNoExiste("Usuario", "Usuario normal");
+            Rol rolSuperAdmin = crearRolSiNoExiste("SuperAdmin", "Administrador total del sistema");
 
             // ESTADOS
             Estado estadoActivo = crearEstadoSiNoExiste("Activo", 'A');
@@ -106,6 +107,21 @@ public class AdminInitializer {
             );
 
             // USUARIOS
+
+// SUPER ADMIN
+            Usuario superAdmin = crearUsuarioSiNoExiste(
+                    "superadmin@empresa.cl",
+                    "Super",
+                    "Admin",
+                    "Root",
+                    "admin123",
+                    "000000000",
+                    rolSuperAdmin, // Asegúrate de haber definido rolSuperAdmin arriba
+                    orgMer,
+                    depGestion
+            );
+
+// ADMINISTRADOR
             Usuario admin = crearUsuarioSiNoExiste(
                     "admin@admin.com",
                     "Administrador",
@@ -118,6 +134,7 @@ public class AdminInitializer {
                     depGestion
             );
 
+// SEBASTIAN
             Usuario sebastian = crearUsuarioSiNoExiste(
                     "seba@email.com",
                     "Sebastian",
@@ -130,7 +147,7 @@ public class AdminInitializer {
                     depGestion
             );
 
-            // USUARIO NORMAL (para pruebas CP-18)
+// USUARIO NORMAL
             Usuario usuarioTest = crearUsuarioSiNoExiste(
                     "usuario@test.cl",
                     "Test",

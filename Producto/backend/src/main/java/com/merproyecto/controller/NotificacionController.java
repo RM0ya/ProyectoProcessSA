@@ -26,6 +26,24 @@ public class NotificacionController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
+    // NUEVO: notificaciones dirigidas a un usuario en particular
+    // (ej. el superadmin consultando sus notificaciones pendientes)
+    @GetMapping("/usuario/{idUsuario}")
+    public List<Notificacion> getByUsuario(@PathVariable Integer idUsuario) {
+        return service.findByUsuario(idUsuario);
+    }
+
+    // NUEVO: marcar una notificación como leída
+    @PutMapping("/{id}/marcar-leida")
+    public ResponseEntity<?> marcarLeida(@PathVariable Integer id) {
+        try {
+            Notificacion actualizada = service.marcarLeida(id);
+            return ResponseEntity.ok(actualizada);
+        } catch (RuntimeException e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable Integer id) {
 

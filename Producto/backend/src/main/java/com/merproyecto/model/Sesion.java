@@ -1,5 +1,6 @@
 package com.merproyecto.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.*;
@@ -8,9 +9,9 @@ import java.time.LocalDateTime;
 @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 @Entity
 @Table(name = "SESION")
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
+@Getter @Setter @NoArgsConstructor @AllArgsConstructor
+@ToString(exclude = {"usuario"})
+@EqualsAndHashCode(exclude = {"usuario"})
 public class Sesion {
 
     @Id
@@ -35,5 +36,6 @@ public class Sesion {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "id_usuario", nullable = false)
+    @JsonIgnore // Crucial para romper el ciclo
     private Usuario usuario;
 }

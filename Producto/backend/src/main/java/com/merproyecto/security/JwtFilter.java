@@ -33,7 +33,8 @@ public class JwtFilter extends OncePerRequestFilter {
                 || path.startsWith("/api/usuarios/login-google")
                 || path.startsWith("/api/usuarios/crear")
                 || path.startsWith("/api/usuarios/registro-google")
-                || path.startsWith("/api/sesiones/")) {
+                || path.equals("/api/sesiones/iniciar")
+                || path.equals("/api/sesiones/cerrar")) {
             filterChain.doFilter(request, response);
             return;
         }
@@ -43,16 +44,20 @@ public class JwtFilter extends OncePerRequestFilter {
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
             String token = authHeader.substring(7);
 
+// Dentro de tu JwtFilter.java, en el bloque donde extraes el rol:
+            // En tu JwtFilter.java
             if (jwtUtil.isTokenValid(token)) {
                 String email = jwtUtil.extractEmail(token);
                 String rol = jwtUtil.extractRol(token);
 
-                var auth = new UsernamePasswordAuthenticationToken(
-                        email,
-                        null,
-                        List.of(new SimpleGrantedAuthority("ROLE_" + rol.toUpperCase()))
-                );
+                // DEBUG: Esto es vital
+                System.out.println("DEBUG: Email: " + email + " | Rol extraído: '" + rol + "'");
 
+                String authority = "ROLE_" + rol.trim().toUpperCase();
+                System.out.println("DEBUG: Authority generada: " + authority);
+
+                var auth = new UsernamePasswordAuthenticationToken(email, null,
+                        List.of(new SimpleGrantedAuthority(authority)));
                 SecurityContextHolder.getContext().setAuthentication(auth);
             }
         }

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../../data/models/tarea_model.dart';
 import '../../../data/models/proceso_model.dart';
+import '../../../data/models/usuario_model.dart';
 import '../../../data/services/tarea_service.dart';
 import '../../../data/services/proceso_service.dart';
 import '../../../data/providers/usuario_provider.dart';
@@ -19,11 +20,12 @@ class _CrearTareaScreenState extends State<CrearTareaScreen> {
   final _descripcionController = TextEditingController();
   final _fechaController = TextEditingController();
 
-  final TareaService _tareaService = TareaService();
-  final ProcesoService _procesoService = ProcesoService();
-
   List<ProcesoModel> _procesos = [];
   ProcesoModel? _procesoSeleccionado;
+
+  bool _esAdmin = false;
+  List<UsuarioModel> _usuariosOrganizacion = [];
+  UsuarioModel? _usuarioSeleccionado;
 
   bool _cargandoProcesos = true;
   bool _guardando = false;
@@ -31,16 +33,48 @@ class _CrearTareaScreenState extends State<CrearTareaScreen> {
   @override
   void initState() {
     super.initState();
-    _cargarProcesos();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _cargarDatos();
+    });
   }
 
-  Future<void> _cargarProcesos() async {
+  Future<void> _cargarDatos() async {
     try {
-      final procesos = await _procesoService.getAll();
+      final usuarioProvider = Provider.of<UsuarioProvider>(
+        context,
+        listen: false,
+      );
+      final procesoService = ProcesoService(token: usuarioProvider.token);
+      final idOrganizacion =
+          usuarioProvider.usuarioLogueado?.organizacion?['idOrganizacion']
+              as int?;
+
+      final esAdmin = usuarioProvider.esAdmin;
+
+      final procesos = idOrganizacion != null
+          ? await procesoService.getByOrganizacion(idOrganizacion)
+          : <ProcesoModel>[];
+
+      List<UsuarioModel> usuariosOrg = [];
+      if (esAdmin && idOrganizacion != null) {
+        await usuarioProvider.cargarUsuarios();
+        usuariosOrg = usuarioProvider.usuarios;
+      }
+
+      final idPropio = usuarioProvider.usuarioLogueado?.idUsuario;
+      UsuarioModel? usuarioInicial;
+
+      if (usuariosOrg.isNotEmpty && idPropio != null) {
+        final coincidencias = usuariosOrg.where((u) => u.idUsuario == idPropio);
+        usuarioInicial = coincidencias.isNotEmpty ? coincidencias.first : null;
+      }
 
       setState(() {
         _procesos = procesos;
         _procesoSeleccionado = procesos.isNotEmpty ? procesos.first : null;
+        _esAdmin = esAdmin;
+        _usuariosOrganizacion = usuariosOrg;
+        _usuarioSeleccionado = usuarioInicial;
         _cargandoProcesos = false;
       });
     } catch (e) {
@@ -49,7 +83,7 @@ class _CrearTareaScreenState extends State<CrearTareaScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error al cargar procesos: $e'),
+          content: Text('Error al cargar datos: $e'),
           backgroundColor: Colors.red,
         ),
       );
@@ -77,12 +111,14 @@ class _CrearTareaScreenState extends State<CrearTareaScreen> {
       listen: false,
     );
 
-    final usuario = usuarioProvider.usuarioLogueado;
+    final usuarioDestino = _esAdmin
+        ? _usuarioSeleccionado
+        : usuarioProvider.usuarioLogueado;
 
-    if (usuario == null || usuario.idUsuario == null) {
+    if (usuarioDestino == null || usuarioDestino.idUsuario == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('No hay usuario logueado'),
+          content: Text('Selecciona un usuario para asignar la tarea'),
           backgroundColor: Colors.red,
         ),
       );
@@ -117,9 +153,11 @@ class _CrearTareaScreenState extends State<CrearTareaScreen> {
     setState(() => _guardando = true);
 
     try {
+      final tareaService = TareaService(token: usuarioProvider.token);
+
       final tarea = TareaModel(
         idProceso: _procesoSeleccionado!.idProceso!,
-        idUsuario: usuario.idUsuario!,
+        idUsuario: usuarioDestino.idUsuario!,
         idEstado: 1,
         nombreTarea: _tituloController.text.trim(),
         descripcionT: _descripcionController.text.trim().isEmpty
@@ -131,7 +169,7 @@ class _CrearTareaScreenState extends State<CrearTareaScreen> {
         fechaCreacionT: DateTime.now().toIso8601String().split('T').first,
       );
 
-      await _tareaService.create(tarea);
+      await tareaService.create(tarea);
 
       if (!mounted) return;
 
@@ -148,7 +186,7 @@ class _CrearTareaScreenState extends State<CrearTareaScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error al crear tarea: $e'),
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
           backgroundColor: Colors.red,
         ),
       );
@@ -208,6 +246,10 @@ class _CrearTareaScreenState extends State<CrearTareaScreen> {
                     },
                   ),
 
+                  // Solo el Admin ve el selector de a quién asignar la
+                  // tarea; un usuario normal siempre se autoasigna.
+                  if (_esAdmin) _buildSelectorUsuario(),
+
                   _CampoTexto(
                     fieldKey: const Key('crearTareaFechaField'),
                     label: 'Fecha límite',
@@ -243,6 +285,45 @@ class _CrearTareaScreenState extends State<CrearTareaScreen> {
                 ],
               ),
             ),
+    );
+  }
+
+  Widget _buildSelectorUsuario() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Container(
+        key: const Key('crearTareaUsuarioDropdown'),
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.grey.shade300),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.person_outline, color: Color(0xFF185FA5)),
+            const SizedBox(width: 10),
+            Expanded(
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<UsuarioModel>(
+                  value: _usuarioSeleccionado,
+                  isExpanded: true,
+                  hint: const Text('Asignar a...'),
+                  items: _usuariosOrganizacion.map((u) {
+                    return DropdownMenuItem<UsuarioModel>(
+                      value: u,
+                      child: Text('${u.nombre} ${u.apellidoP}'),
+                    );
+                  }).toList(),
+                  onChanged: (value) {
+                    setState(() => _usuarioSeleccionado = value);
+                  },
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

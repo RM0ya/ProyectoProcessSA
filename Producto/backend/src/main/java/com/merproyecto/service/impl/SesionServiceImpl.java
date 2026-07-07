@@ -24,6 +24,15 @@ public class SesionServiceImpl implements SesionService {
         Usuario usuario = usuarioRepository.findById(idUsuario)
                 .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
 
+        // Cierra cualquier sesión previa activa del mismo usuario
+        sesionRepository
+                .findTopByUsuarioIdUsuarioAndFechaFinSIsNullOrderByFechaInicioSDesc(idUsuario)
+                .ifPresent(sesionAnterior -> {
+                    sesionAnterior.setFechaFinS(LocalDateTime.now());
+                    sesionAnterior.setTipoEvento("LOGOUT_AUTOMATICO");
+                    sesionRepository.save(sesionAnterior);
+                });
+
         Sesion sesion = new Sesion();
         sesion.setUsuario(usuario);
         sesion.setToken(token);

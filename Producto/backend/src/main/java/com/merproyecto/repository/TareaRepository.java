@@ -20,4 +20,7 @@ public interface TareaRepository extends JpaRepository<Tarea, Integer> {
     List<Tarea> findByProcesoOrganizacionIdOrganizacionOrderByFechaCreacionTDesc(Integer idOrganizacion);
     List<Tarea> findByUsuarioIdUsuarioOrderByFechaCreacionTDesc(Integer idUsuario);
 
+
+    long countByUsuarioIdUsuarioAndFechaCreacionT(Integer idUsuario, LocalDate fecha);
+
 }

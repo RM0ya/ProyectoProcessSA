@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../../../data/models/tarea_model.dart';
 import '../../../data/services/tarea_service.dart';
+import '../../../data/providers/usuario_provider.dart';
+import '../../../data/models/usuario_model.dart';
 
 class TareaDetalleScreen extends StatefulWidget {
   final TareaModel tarea;
@@ -13,12 +16,13 @@ class TareaDetalleScreen extends StatefulWidget {
 }
 
 class _TareaDetalleScreenState extends State<TareaDetalleScreen> {
-  final TareaService _service = TareaService();
-
   late TextEditingController _tituloController;
   late TextEditingController _descripcionController;
   late TextEditingController _fechaController;
   late int _idEstado;
+  late int? _idUsuarioSeleccionado;
+
+  List<UsuarioModel> _usuariosOrganizacion = [];
 
   bool _editando = false;
   bool _guardando = false;
@@ -40,6 +44,20 @@ class _TareaDetalleScreenState extends State<TareaDetalleScreen> {
     _fechaController = TextEditingController(text: widget.tarea.fechaLimiteS);
 
     _idEstado = widget.tarea.idEstado;
+    _idUsuarioSeleccionado = widget.tarea.idUsuario;
+
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _cargarUsuariosSiEsAdmin(),
+    );
+  }
+
+  Future<void> _cargarUsuariosSiEsAdmin() async {
+    final usuarioProvider = context.read<UsuarioProvider>();
+    if (!usuarioProvider.esAdmin) return;
+
+    await usuarioProvider.cargarUsuarios();
+    if (!mounted) return;
+    setState(() => _usuariosOrganizacion = usuarioProvider.usuarios);
   }
 
   @override
@@ -48,6 +66,20 @@ class _TareaDetalleScreenState extends State<TareaDetalleScreen> {
     _descripcionController.dispose();
     _fechaController.dispose();
     super.dispose();
+  }
+
+  // Un usuario normal solo puede editar su propia tarea, y solo mientras
+  // no esté completada. El Admin puede editar cualquier tarea, incluso
+  // completadas (para reabrirlas o corregirlas).
+  bool _puedeEditar(UsuarioProvider usuarioProvider) {
+    if (usuarioProvider.esAdmin) return true;
+
+    final esDueno =
+        widget.tarea.idUsuario == usuarioProvider.usuarioLogueado?.idUsuario;
+    final estaCompletadaOriginal =
+        (widget.tarea.nombreEstado ?? '').toLowerCase() == 'completada';
+
+    return esDueno && !estaCompletadaOriginal;
   }
 
   Color _colorEstado() {
@@ -103,10 +135,13 @@ class _TareaDetalleScreenState extends State<TareaDetalleScreen> {
     setState(() => _guardando = true);
 
     try {
+      final usuarioProvider = context.read<UsuarioProvider>();
+      final service = TareaService(token: usuarioProvider.token);
+
       final tareaActualizada = TareaModel(
         idTarea: widget.tarea.idTarea,
         idProceso: widget.tarea.idProceso,
-        idUsuario: widget.tarea.idUsuario,
+        idUsuario: _idUsuarioSeleccionado ?? widget.tarea.idUsuario,
         idEstado: _idEstado,
         nombreTarea: _tituloController.text.trim(),
         descripcionT: _descripcionController.text.trim(),
@@ -118,7 +153,7 @@ class _TareaDetalleScreenState extends State<TareaDetalleScreen> {
         fechaCreacionT: widget.tarea.fechaCreacionT,
       );
 
-      await _service.update(widget.tarea.idTarea!, tareaActualizada);
+      await service.update(widget.tarea.idTarea!, tareaActualizada);
 
       if (!mounted) return;
 
@@ -135,7 +170,7 @@ class _TareaDetalleScreenState extends State<TareaDetalleScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error al actualizar tarea: $e'),
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
           backgroundColor: Colors.red,
         ),
       );
@@ -259,8 +294,42 @@ class _TareaDetalleScreenState extends State<TareaDetalleScreen> {
     );
   }
 
+  Widget _selectorUsuario() {
+    final existeEnLista = _usuariosOrganizacion.any(
+      (u) => u.idUsuario == _idUsuarioSeleccionado,
+    );
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<int>(
+          value: existeEnLista ? _idUsuarioSeleccionado : null,
+          isExpanded: true,
+          hint: const Text('Reasignar a...'),
+          icon: const Icon(Icons.keyboard_arrow_down),
+          items: _usuariosOrganizacion.map((u) {
+            return DropdownMenuItem<int>(
+              value: u.idUsuario,
+              child: Text('${u.nombre} ${u.apellidoP}'),
+            );
+          }).toList(),
+          onChanged: (value) => setState(() => _idUsuarioSeleccionado = value),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final usuarioProvider = context.watch<UsuarioProvider>();
+    final puedeEditar = _puedeEditar(usuarioProvider);
+
     final proceso = widget.tarea.nombreProceso ?? 'Sin proceso';
     final usuario = widget.tarea.nombreUsuario ?? 'Sin usuario';
 
@@ -274,12 +343,14 @@ class _TareaDetalleScreenState extends State<TareaDetalleScreen> {
         backgroundColor: const Color(0xFF185FA5),
         iconTheme: const IconThemeData(color: Colors.white),
         actions: [
-          IconButton(
-            icon: Icon(_editando ? Icons.close : Icons.edit),
-            onPressed: () {
-              setState(() => _editando = !_editando);
-            },
-          ),
+          // El ícono de editar solo aparece si el usuario tiene permiso.
+          if (puedeEditar)
+            IconButton(
+              icon: Icon(_editando ? Icons.close : Icons.edit),
+              onPressed: () {
+                setState(() => _editando = !_editando);
+              },
+            ),
         ],
       ),
       body: SingleChildScrollView(
@@ -320,6 +391,40 @@ class _TareaDetalleScreenState extends State<TareaDetalleScreen> {
             ),
 
             const SizedBox(height: 16),
+
+            if (!puedeEditar)
+              Container(
+                width: double.infinity,
+                margin: const EdgeInsets.only(bottom: 16),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.info_outline,
+                      size: 18,
+                      color: Colors.orange,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        (widget.tarea.nombreEstado ?? '').toLowerCase() ==
+                                'completada'
+                            ? 'Esta tarea ya está completada. Solo un administrador puede modificarla.'
+                            : 'No puedes modificar esta tarea porque no es tuya.',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.orange,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
 
             GridView.count(
               crossAxisCount: 2,
@@ -378,6 +483,10 @@ class _TareaDetalleScreenState extends State<TareaDetalleScreen> {
               readOnly: true,
               onTap: _editando ? _seleccionarFecha : null,
             ),
+
+            // Solo el Admin, y solo en modo edición, ve el selector para
+            // reasignar la tarea a otro usuario de la organización.
+            if (usuarioProvider.esAdmin && _editando) _selectorUsuario(),
 
             _selectorEstado(),
 

@@ -2,6 +2,24 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../data/providers/usuario_provider.dart';
 
+const _dominiosDesechables = [
+  'mailinator.com',
+  'tempmail.com',
+  'guerrillamail.com',
+  '10minutemail.com',
+  'yopmail.com',
+  'trashmail.com',
+  'fakeinbox.com',
+  'throwawaymail.com',
+];
+
+bool _esDominioDesechable(String correo) {
+  final partes = correo.split('@');
+  if (partes.length < 2) return false;
+  final dominio = partes.last.toLowerCase();
+  return _dominiosDesechables.contains(dominio);
+}
+
 class RegistroScreen extends StatefulWidget {
   const RegistroScreen({super.key});
 
@@ -65,8 +83,27 @@ class _RegistroScreenState extends State<RegistroScreen>
     if (_nombreController.text.trim().isEmpty ||
         _apellidoController.text.trim().isEmpty ||
         _correoController.text.trim().isEmpty ||
+        _telefonoController.text.trim().isEmpty ||
         _passwordController.text.trim().isEmpty) {
       _mostrarError('Completa todos los campos obligatorios');
+      return;
+    }
+
+    final correo = _correoController.text.trim();
+
+    final regexCorreo = RegExp(r'^[\w\.-]+@([\w-]+\.)+[\w-]{2,}$');
+    if (!regexCorreo.hasMatch(correo)) {
+      _mostrarError('Ingresa un correo electrónico válido');
+      return;
+    }
+
+    if (_esDominioDesechable(correo)) {
+      _mostrarError('No se permiten correos temporales o desechables');
+      return;
+    }
+
+    if (_telefonoController.text.trim().length < 8) {
+      _mostrarError('Ingresa un número de teléfono válido');
       return;
     }
 
@@ -87,7 +124,7 @@ class _RegistroScreenState extends State<RegistroScreen>
     final exito = await provider.registrar(
       nombre: _nombreController.text.trim(),
       apellido: _apellidoController.text.trim(),
-      email: _correoController.text.trim(),
+      email: correo,
       password: _passwordController.text.trim(),
       telefono: _telefonoController.text.trim(),
     );
@@ -103,11 +140,16 @@ class _RegistroScreenState extends State<RegistroScreen>
             children: [
               Icon(Icons.check_circle, color: Colors.white, size: 18),
               SizedBox(width: 8),
-              Text('Cuenta creada correctamente'),
+              Expanded(
+                child: Text(
+                  'Cuenta creada. Un administrador debe activar tu acceso.',
+                ),
+              ),
             ],
           ),
           backgroundColor: const Color(0xFF639922),
           behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 4),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(10),
           ),
@@ -270,7 +312,7 @@ class _RegistroScreenState extends State<RegistroScreen>
                             ),
                             _CampoReg(
                               keyCampo: const Key('registroTelefonoField'),
-                              label: 'Teléfono (opcional)',
+                              label: 'Teléfono *',
                               controller: _telefonoController,
                               icono: Icons.phone_outlined,
                               tipo: TextInputType.phone,

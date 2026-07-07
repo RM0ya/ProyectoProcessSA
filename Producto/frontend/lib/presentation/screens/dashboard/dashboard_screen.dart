@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../data/providers/usuario_provider.dart';
+import '../../../data/providers/tarea_provider.dart';
+import '../../../data/providers/proceso_provider.dart';
 import '../admin/admin_screen.dart';
 import '../reportes/reportes_screen.dart';
 
@@ -14,6 +16,46 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   int _currentIndex = 0;
+  bool _cargado = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_cargado) {
+      _cargado = true;
+      // Se difiere la carga al siguiente frame para evitar el error
+      // "setState() or markNeedsBuild() called during build", ya que
+      // didChangeDependencies() se ejecuta durante la fase de build.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _cargarDatos();
+      });
+    }
+  }
+
+  Future<void> _cargarDatos() async {
+    final usuarioProvider = context.read<UsuarioProvider>();
+    final tareaProvider = context.read<TareaProvider>();
+    final procesoProvider = context.read<ProcesoProvider>();
+
+    final esAdmin = usuarioProvider.esAdmin;
+    final idUsuario = usuarioProvider.usuarioLogueado?.idUsuario;
+    final idOrganizacion =
+        usuarioProvider.usuarioLogueado?.organizacion?['idOrganizacion'];
+    final token = usuarioProvider.token;
+
+    await Future.wait([
+      tareaProvider.cargarTareas(
+        esAdmin: esAdmin,
+        idUsuario: idUsuario,
+        idOrganizacion: idOrganizacion,
+        token: token,
+      ),
+      procesoProvider.cargarProcesos(
+        idOrganizacion: idOrganizacion,
+        token: token,
+      ),
+    ]);
+  }
 
   Future<void> _confirmarLogout(UsuarioProvider provider) async {
     final confirmar = await showDialog<bool>(
@@ -45,17 +87,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
     await provider.cerrarSesion();
 
     if (!mounted) return;
-    Navigator.pushReplacementNamed(context, '/login');
+
+    Navigator.of(
+      context,
+    ).pushNamedAndRemoveUntil('/login', (Route<dynamic> route) => false);
   }
 
-  void _onItemTapped(int index, bool esAdmin) {
+  void _onItemTapped(int index, bool esAdmin) async {
     if (index == 1) {
-      Navigator.pushNamed(context, '/tareas');
+      await Navigator.pushNamed(context, '/tareas');
+      if (mounted) _cargarDatos();
       return;
     }
 
     if (index == 2) {
-      Navigator.pushNamed(context, '/procesos');
+      await Navigator.pushNamed(context, '/procesos');
+      if (mounted) _cargarDatos();
       return;
     }
 
@@ -83,12 +130,38 @@ class _DashboardScreenState extends State<DashboardScreen> {
     setState(() => _currentIndex = index);
   }
 
+  String _formatEstado(String? nombreEstado) {
+    switch (nombreEstado) {
+      case 'Activo':
+        return 'En curso';
+      case 'Completada':
+        return 'Completada';
+      case 'Inactivo':
+        return 'Pendiente';
+      default:
+        return nombreEstado ?? 'Sin estado';
+    }
+  }
+
+  Color _colorEstado(String? nombreEstado) {
+    switch (nombreEstado) {
+      case 'Activo':
+        return Colors.blue;
+      case 'Completada':
+        return Colors.green;
+      case 'Inactivo':
+        return Colors.orange;
+      default:
+        return Colors.grey;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Consumer<UsuarioProvider>(
-      builder: (context, provider, _) {
-        final usuario = provider.usuarioLogueado;
-        final esAdmin = provider.esAdmin;
+    return Consumer3<UsuarioProvider, TareaProvider, ProcesoProvider>(
+      builder: (context, usuarioProvider, tareaProvider, procesoProvider, _) {
+        final usuario = usuarioProvider.usuarioLogueado;
+        final esAdmin = usuarioProvider.esAdmin;
         final nombre = usuario?.nombre ?? 'Usuario';
         final rolNombre = usuario?.rol?['nombre'] ?? 'Usuario';
         final apellido = usuario?.apellidoP ?? '';
@@ -98,6 +171,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
             : 'US';
 
         final safeIndex = _currentIndex > (esAdmin ? 5 : 4) ? 0 : _currentIndex;
+
+        final cargandoDatos =
+            tareaProvider.isLoading || procesoProvider.isLoading;
 
         return Scaffold(
           backgroundColor: Colors.grey[50],
@@ -119,127 +195,145 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 key: const Key('dashboardLogoutButton'),
                 icon: const Icon(Icons.logout, color: Colors.white),
                 tooltip: 'Cerrar sesión',
-                onPressed: () => _confirmarLogout(provider),
+                onPressed: () => _confirmarLogout(usuarioProvider),
               ),
             ],
           ),
-          body: SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Hola, $nombre',
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                Text(
-                  '$rolNombre · Process SA',
-                  style: const TextStyle(color: Colors.grey),
-                ),
-                if (esAdmin) ...[
-                  const SizedBox(height: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 4,
+          body: RefreshIndicator(
+            onRefresh: _cargarDatos,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Hola, $nombre',
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w600,
                     ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF185FA5).withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: const Color(0xFF185FA5).withOpacity(0.3),
+                  ),
+                  Text(
+                    '$rolNombre · Process SA',
+                    style: const TextStyle(color: Colors.grey),
+                  ),
+                  if (esAdmin) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF185FA5).withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: const Color(0xFF185FA5).withOpacity(0.3),
+                        ),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.shield,
+                            size: 14,
+                            color: Color(0xFF185FA5),
+                          ),
+                          SizedBox(width: 4),
+                          Text(
+                            'Acceso administrador',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Color(0xFF185FA5),
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
+                  ],
+                  const SizedBox(height: 20),
+                  _QuickActionCard(
+                    icono: Icons.picture_as_pdf,
+                    titulo: esAdmin
+                        ? 'Generar reporte general'
+                        : 'Generar mi reporte',
+                    subtitulo: esAdmin
+                        ? 'Descarga el PDF con todas las tareas de la organización'
+                        : 'Descarga el PDF solo con tus tareas asignadas',
+                    color: Colors.red,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const ReportesScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 20),
+                  if (cargandoDatos)
+                    const Center(
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(vertical: 24),
+                        child: CircularProgressIndicator(),
+                      ),
+                    )
+                  else
+                    GridView.count(
+                      crossAxisCount: 2,
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      crossAxisSpacing: 12,
+                      mainAxisSpacing: 12,
+                      childAspectRatio: 1.5,
                       children: [
-                        Icon(Icons.shield, size: 14, color: Color(0xFF185FA5)),
-                        SizedBox(width: 4),
-                        Text(
-                          'Acceso administrador',
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: Color(0xFF185FA5),
-                            fontWeight: FontWeight.w500,
-                          ),
+                        _KpiCard(
+                          titulo: 'Tareas activas',
+                          valor: '${tareaProvider.tareasActivas}',
+                          color: const Color(0xFF185FA5),
+                        ),
+                        _KpiCard(
+                          titulo: 'Cumplimiento',
+                          valor: '${tareaProvider.cumplimientoPorcentaje}%',
+                          color: const Color(0xFF639922),
+                        ),
+                        _KpiCard(
+                          titulo: 'Procesos',
+                          valor: '${procesoProvider.totalProcesos}',
+                          color: const Color(0xFF534AB7),
+                        ),
+                        _KpiCard(
+                          titulo: 'Completadas',
+                          valor: '${tareaProvider.tareasCompletadas}',
+                          color: const Color(0xFF0F6E56),
                         ),
                       ],
                     ),
+                  const SizedBox(height: 24),
+                  const Text(
+                    'Tareas recientes',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                   ),
+                  const SizedBox(height: 12),
+                  if (!cargandoDatos && tareaProvider.tareasRecientes.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 12),
+                      child: Text(
+                        'No hay tareas registradas',
+                        style: TextStyle(color: Colors.grey),
+                      ),
+                    )
+                  else if (!cargandoDatos)
+                    ...tareaProvider.tareasRecientes.map(
+                      (tarea) => _TareaItem(
+                        titulo: tarea.nombreTarea,
+                        estado: _formatEstado(tarea.nombreEstado),
+                        colorEstado: _colorEstado(tarea.nombreEstado),
+                      ),
+                    ),
                 ],
-                const SizedBox(height: 20),
-                _QuickActionCard(
-                  icono: Icons.picture_as_pdf,
-                  titulo: esAdmin
-                      ? 'Generar reporte general'
-                      : 'Generar mi reporte',
-                  subtitulo: esAdmin
-                      ? 'Descarga el PDF con todas las tareas de la organización'
-                      : 'Descarga el PDF solo con tus tareas asignadas',
-                  color: Colors.red,
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const ReportesScreen()),
-                    );
-                  },
-                ),
-                const SizedBox(height: 20),
-                GridView.count(
-                  crossAxisCount: 2,
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  crossAxisSpacing: 12,
-                  mainAxisSpacing: 12,
-                  childAspectRatio: 1.5,
-                  children: const [
-                    _KpiCard(
-                      titulo: 'Tareas activas',
-                      valor: '24',
-                      color: Color(0xFF185FA5),
-                    ),
-                    _KpiCard(
-                      titulo: 'Cumplimiento',
-                      valor: '85%',
-                      color: Color(0xFF639922),
-                    ),
-                    _KpiCard(
-                      titulo: 'Procesos',
-                      valor: '6',
-                      color: Color(0xFF534AB7),
-                    ),
-                    _KpiCard(
-                      titulo: 'Completadas',
-                      valor: '12',
-                      color: Color(0xFF0F6E56),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 24),
-                const Text(
-                  'Tareas recientes',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 12),
-                _TareaItem(
-                  titulo: 'Revisión contrato cliente A',
-                  estado: 'En curso',
-                  colorEstado: Colors.blue,
-                ),
-                _TareaItem(
-                  titulo: 'Informe mensual RRHH',
-                  estado: 'Pendiente',
-                  colorEstado: Colors.orange,
-                ),
-                _TareaItem(
-                  titulo: 'Auditoría de accesos',
-                  estado: 'Completada',
-                  colorEstado: Colors.green,
-                ),
-              ],
+              ),
             ),
           ),
           bottomNavigationBar: BottomNavigationBar(
@@ -464,4 +558,3 @@ class _TareaItem extends StatelessWidget {
     );
   }
 }
-  

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../data/providers/usuario_provider.dart';
+import '../../../data/providers/organizacion_provider.dart';
 import '../../../data/services/reporte_service.dart';
 
 class ReportesScreen extends StatefulWidget {
@@ -13,6 +14,23 @@ class ReportesScreen extends StatefulWidget {
 
 class _ReportesScreenState extends State<ReportesScreen> {
   bool _descargando = false;
+  int? _orgSeleccionada;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final usuarioProvider = context.read<UsuarioProvider>();
+
+      if (usuarioProvider.esSuperAdmin) {
+        final orgProvider = context.read<OrganizacionProvider>();
+        if (usuarioProvider.token != null) {
+          orgProvider.setToken(usuarioProvider.token!);
+        }
+        orgProvider.cargarOrganizaciones();
+      }
+    });
+  }
 
   Future<void> _descargarReporte() async {
     final provider = Provider.of<UsuarioProvider>(context, listen: false);
@@ -25,7 +43,13 @@ class _ReportesScreenState extends State<ReportesScreen> {
     try {
       final service = ReporteService(provider.token);
 
-      if (provider.esAdmin) {
+      if (provider.esSuperAdmin) {
+        if (_orgSeleccionada == null) {
+          throw Exception('Selecciona una organización');
+        }
+
+        await service.descargarReporteOrganizacion(_orgSeleccionada!);
+      } else if (provider.esAdmin) {
         final idOrg = usuario.organizacion?['idOrganizacion'];
 
         if (idOrg == null) {
@@ -69,6 +93,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
   Widget build(BuildContext context) {
     final provider = context.watch<UsuarioProvider>();
     final esAdmin = provider.esAdmin;
+    final esSuperAdmin = provider.esSuperAdmin;
 
     return Scaffold(
       backgroundColor: Colors.grey[50],
@@ -93,11 +118,17 @@ class _ReportesScreenState extends State<ReportesScreen> {
                 Icon(
                   Icons.picture_as_pdf,
                   size: 42,
-                  color: esAdmin ? const Color(0xFF185FA5) : Colors.green,
+                  color: esSuperAdmin
+                      ? Colors.purple
+                      : esAdmin
+                      ? const Color(0xFF185FA5)
+                      : Colors.green,
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  esAdmin
+                  esSuperAdmin
+                      ? 'Reporte por organización'
+                      : esAdmin
                       ? 'Reporte general de tareas'
                       : 'Reporte de mis tareas',
                   style: const TextStyle(
@@ -107,11 +138,52 @@ class _ReportesScreenState extends State<ReportesScreen> {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  esAdmin
+                  esSuperAdmin
+                      ? 'Selecciona una organización para descargar el reporte de sus tareas.'
+                      : esAdmin
                       ? 'Como administrador puedes descargar el reporte de todas las tareas de la organización.'
                       : 'Puedes descargar solamente el reporte de tus propias tareas asignadas.',
                   style: const TextStyle(fontSize: 13, color: Colors.grey),
                 ),
+                if (esSuperAdmin) ...[
+                  const SizedBox(height: 16),
+                  Consumer<OrganizacionProvider>(
+                    builder: (context, orgProvider, _) {
+                      if (orgProvider.isLoading) {
+                        return const Center(
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        );
+                      }
+
+                      return Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade50,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.grey.shade300),
+                        ),
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<int>(
+                            value: _orgSeleccionada,
+                            isExpanded: true,
+                            hint: const Text('Selecciona organización'),
+                            items: orgProvider.organizaciones
+                                .map(
+                                  (o) => DropdownMenuItem<int>(
+                                    value: o['idOrganizacion'] as int,
+                                    child: Text(o['nombre'] as String),
+                                  ),
+                                )
+                                .toList(),
+                            onChanged: (v) {
+                              setState(() => _orgSeleccionada = v);
+                            },
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ],
                 const SizedBox(height: 20),
                 SizedBox(
                   width: double.infinity,

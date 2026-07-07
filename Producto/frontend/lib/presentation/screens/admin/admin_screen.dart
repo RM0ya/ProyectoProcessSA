@@ -21,29 +21,35 @@ class _AdminScreenState extends State<AdminScreen> {
     super.initState();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final usuarioProvider = Provider.of<UsuarioProvider>(
-        context,
-        listen: false,
-      );
-      final orgProvider = Provider.of<OrganizacionProvider>(
-        context,
-        listen: false,
-      );
-      final depProvider = Provider.of<DepartamentoProvider>(
-        context,
-        listen: false,
-      );
-
-      final token = usuarioProvider.token;
-
-      if (token != null) {
-        orgProvider.setToken(token);
-        depProvider.setToken(token);
-      }
-
-      usuarioProvider.cargarUsuarios();
-      orgProvider.cargarOrganizaciones();
+      _cargarDatos();
     });
+  }
+
+  Future<void> _cargarDatos() async {
+    final usuarioProvider = Provider.of<UsuarioProvider>(
+      context,
+      listen: false,
+    );
+    final orgProvider = Provider.of<OrganizacionProvider>(
+      context,
+      listen: false,
+    );
+    final depProvider = Provider.of<DepartamentoProvider>(
+      context,
+      listen: false,
+    );
+
+    final token = usuarioProvider.token;
+
+    if (token != null) {
+      orgProvider.setToken(token);
+      depProvider.setToken(token);
+    }
+
+    await Future.wait([
+      usuarioProvider.cargarUsuarios(),
+      orgProvider.cargarOrganizaciones(),
+    ]);
   }
 
   void _mostrarFormulario({UsuarioModel? usuario}) {
@@ -95,6 +101,15 @@ class _AdminScreenState extends State<AdminScreen> {
 
               final ok = await provider.eliminarUsuario(usuario.idUsuario!);
 
+              // Si falló (por ejemplo porque el usuario ya no existía en
+              // el backend, mostrando un "500 - Usuario no encontrado"),
+              // se vuelve a cargar la lista completa para eliminar
+              // cualquier fila desactualizada/fantasma en vez de dejarla
+              // ahí mostrando el mismo error una y otra vez.
+              if (!ok && mounted) {
+                await provider.cargarUsuarios();
+              }
+
               messenger.showSnackBar(
                 SnackBar(
                   content: Text(
@@ -130,7 +145,9 @@ class _AdminScreenState extends State<AdminScreen> {
     );
   }
 
-  List<Widget> _opcionesAdmin() {
+  List<Widget> _opcionesAdmin(bool esSuperAdmin) {
+    if (esSuperAdmin) return [];
+
     return [
       _AdminOptionCard(
         icono: Icons.manage_accounts,
@@ -171,181 +188,203 @@ class _AdminScreenState extends State<AdminScreen> {
       ),
       body: Consumer<UsuarioProvider>(
         builder: (context, provider, _) {
-          if (provider.isLoading) {
+          if (provider.isLoading && provider.usuarios.isEmpty) {
             return const Center(child: CircularProgressIndicator());
           }
 
           if (provider.usuarios.isEmpty) {
-            return ListView(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 90),
-              children: [
-                ..._opcionesAdmin(),
-                const SizedBox(height: 80),
-                const Center(
-                  child: Column(
-                    children: [
-                      Icon(Icons.people_outline, size: 60, color: Colors.grey),
-                      SizedBox(height: 12),
-                      Text(
-                        'No hay usuarios registrados',
-                        style: TextStyle(color: Colors.grey),
-                      ),
-                    ],
+            // NUEVO: RefreshIndicator también en el estado vacío, para
+            // poder sincronizar manualmente aunque no haya usuarios
+            // cargados todavía (o si se vaciaron por completo).
+            return RefreshIndicator(
+              onRefresh: _cargarDatos,
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 90),
+                children: [
+                  ..._opcionesAdmin(provider.esSuperAdmin),
+                  const SizedBox(height: 80),
+                  const Center(
+                    child: Column(
+                      children: [
+                        Icon(
+                          Icons.people_outline,
+                          size: 60,
+                          color: Colors.grey,
+                        ),
+                        SizedBox(height: 12),
+                        Text(
+                          'No hay usuarios registrados',
+                          style: TextStyle(color: Colors.grey),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             );
           }
 
-          return ListView(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 90),
-            children: [
-              ..._opcionesAdmin(),
-              const SizedBox(height: 20),
-              const Text(
-                'Usuarios registrados',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-              ),
-              const SizedBox(height: 12),
-              ...provider.usuarios.map((u) {
-                final esYo = u.idUsuario == provider.usuarioLogueado?.idUsuario;
-                final rolNombre = u.rol?['nombre']?.toString() ?? 'Sin rol';
-                final depNombre = u.departamento?['nombre']?.toString();
-                final iniciales =
-                    (u.nombre.isNotEmpty ? u.nombre[0] : '') +
-                    (u.apellidoP.isNotEmpty ? u.apellidoP[0] : '');
+          // NUEVO: RefreshIndicator envolviendo la lista de usuarios, para
+          // poder arrastrar hacia abajo y sincronizar con el backend en
+          // cualquier momento (por ejemplo si la lista quedó desactualizada
+          // tras cambios hechos desde otra sesión/dispositivo).
+          return RefreshIndicator(
+            onRefresh: _cargarDatos,
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 90),
+              children: [
+                ..._opcionesAdmin(provider.esSuperAdmin),
+                const SizedBox(height: 20),
+                const Text(
+                  'Usuarios registrados',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 12),
+                ...provider.usuarios.map((u) {
+                  final esYo =
+                      u.idUsuario == provider.usuarioLogueado?.idUsuario;
+                  final rolNombre = u.rol?['nombre']?.toString() ?? 'Sin rol';
+                  final depNombre = u.departamento?['nombre']?.toString();
+                  final iniciales =
+                      (u.nombre.isNotEmpty ? u.nombre[0] : '') +
+                      (u.apellidoP.isNotEmpty ? u.apellidoP[0] : '');
 
-                return Container(
-                  key: Key('adminUsuarioItem_${u.idUsuario}'),
-                  margin: const EdgeInsets.only(bottom: 10),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: esYo
-                          ? const Color(0xFF185FA5).withOpacity(0.4)
-                          : Colors.grey.shade200,
-                      width: esYo ? 1.5 : 1,
-                    ),
-                  ),
-                  child: ListTile(
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    leading: CircleAvatar(
-                      backgroundColor: const Color(0xFF185FA5),
-                      child: Text(
-                        iniciales.toUpperCase(),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 14,
-                        ),
+                  return Container(
+                    key: Key('adminUsuarioItem_${u.idUsuario}'),
+                    margin: const EdgeInsets.only(bottom: 10),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: esYo
+                            ? const Color(0xFF185FA5).withOpacity(0.4)
+                            : Colors.grey.shade200,
+                        width: esYo ? 1.5 : 1,
                       ),
                     ),
-                    title: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            '${u.nombre} ${u.apellidoP}',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w600,
-                              fontSize: 14,
-                            ),
-                            overflow: TextOverflow.ellipsis,
+                    child: ListTile(
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      leading: CircleAvatar(
+                        backgroundColor: const Color(0xFF185FA5),
+                        child: Text(
+                          iniciales.toUpperCase(),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
                           ),
                         ),
-                        if (esYo) ...[
-                          const SizedBox(width: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 2,
+                      ),
+                      title: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              '${u.nombre} ${u.apellidoP}',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 14,
+                              ),
+                              overflow: TextOverflow.ellipsis,
                             ),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF185FA5).withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: const Text(
-                              'Tú',
-                              style: TextStyle(
-                                fontSize: 10,
-                                color: Color(0xFF185FA5),
+                          ),
+                          if (esYo) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF185FA5).withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: const Text(
+                                'Tú',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: Color(0xFF185FA5),
+                                ),
                               ),
                             ),
-                          ),
-                        ],
-                      ],
-                    ),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const SizedBox(height: 2),
-                        Text(
-                          u.emailUsuario,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Wrap(
-                          spacing: 6,
-                          runSpacing: 4,
-                          children: [
-                            _Tag(
-                              texto: rolNombre,
-                              color: rolNombre.toLowerCase() == 'admin'
-                                  ? Colors.blue
-                                  : Colors.green,
-                            ),
-                            if (depNombre != null)
-                              _Tag(texto: depNombre, color: Colors.orange),
                           ],
-                        ),
-                      ],
-                    ),
-                    trailing: PopupMenuButton<String>(
-                      key: Key('adminUsuarioMenu_${u.idUsuario}'),
-                      icon: const Icon(Icons.more_vert, color: Colors.grey),
-                      onSelected: (value) {
-                        if (value == 'editar') {
-                          _mostrarFormulario(usuario: u);
-                        } else if (value == 'eliminar') {
-                          _confirmarEliminar(context, u);
-                        }
-                      },
-                      itemBuilder: (_) => [
-                        const PopupMenuItem(
-                          value: 'editar',
-                          child: Row(
+                        ],
+                      ),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const SizedBox(height: 2),
+                          Text(
+                            u.emailUsuario,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 4,
                             children: [
-                              Icon(Icons.edit, size: 18, color: Colors.blue),
-                              SizedBox(width: 8),
-                              Text('Editar'),
+                              _Tag(
+                                texto: rolNombre,
+                                color: rolNombre.toLowerCase() == 'admin'
+                                    ? Colors.blue
+                                    : Colors.green,
+                              ),
+                              if (depNombre != null)
+                                _Tag(texto: depNombre, color: Colors.orange),
                             ],
                           ),
-                        ),
-                        if (!esYo)
+                        ],
+                      ),
+                      trailing: PopupMenuButton<String>(
+                        key: Key('adminUsuarioMenu_${u.idUsuario}'),
+                        icon: const Icon(Icons.more_vert, color: Colors.grey),
+                        onSelected: (value) {
+                          if (value == 'editar') {
+                            _mostrarFormulario(usuario: u);
+                          } else if (value == 'eliminar') {
+                            _confirmarEliminar(context, u);
+                          }
+                        },
+                        itemBuilder: (_) => [
                           const PopupMenuItem(
-                            value: 'eliminar',
+                            value: 'editar',
                             child: Row(
                               children: [
-                                Icon(Icons.delete, size: 18, color: Colors.red),
+                                Icon(Icons.edit, size: 18, color: Colors.blue),
                                 SizedBox(width: 8),
-                                Text(
-                                  'Eliminar',
-                                  style: TextStyle(color: Colors.red),
-                                ),
+                                Text('Editar'),
                               ],
                             ),
                           ),
-                      ],
+                          if (!esYo)
+                            const PopupMenuItem(
+                              value: 'eliminar',
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.delete,
+                                    size: 18,
+                                    color: Colors.red,
+                                  ),
+                                  SizedBox(width: 8),
+                                  Text(
+                                    'Eliminar',
+                                    style: TextStyle(color: Colors.red),
+                                  ),
+                                ],
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
-                  ),
-                );
-              }),
-            ],
+                  );
+                }),
+              ],
+            ),
           );
         },
       ),
@@ -467,10 +506,12 @@ class _FormularioUsuarioState extends State<_FormularioUsuario> {
   int? _orgSeleccionada;
 
   static const int _sinDepartamento = -1;
+  static const int _rolSuperAdmin = 3;
   int _depSeleccionado = _sinDepartamento;
 
   bool _guardando = false;
   bool _verPassword = false;
+  bool _creadorEsSuperAdmin = false;
 
   bool get _esEdicion => widget.usuarioEditar != null;
 
@@ -502,12 +543,38 @@ class _FormularioUsuarioState extends State<_FormularioUsuario> {
       );
 
       final token = usuarioProvider.token;
+      final creadorEsSuperAdmin = usuarioProvider.esSuperAdmin;
 
       if (token != null) {
         orgProvider.setToken(token);
         depProvider.setToken(token);
       }
 
+      setState(() => _creadorEsSuperAdmin = creadorEsSuperAdmin);
+
+      // Si quien crea es Admin normal (no Super Admin) y está creando un
+      // usuario nuevo, se asigna automáticamente su propia organización,
+      // ya que no tiene permiso para listar todas las organizaciones.
+      if (!creadorEsSuperAdmin && !_esEdicion) {
+        final orgPropia =
+            usuarioProvider.usuarioLogueado?.organizacion?['idOrganizacion'];
+
+        int? orgId;
+        if (orgPropia is int) {
+          orgId = orgPropia;
+        } else if (orgPropia != null) {
+          orgId = int.tryParse(orgPropia.toString());
+        }
+
+        setState(() => _orgSeleccionada = orgId);
+
+        if (orgId != null) {
+          depProvider.cargarPorOrganizacion(orgId);
+        }
+        return;
+      }
+
+      // Super Admin, o edición: carga todas las organizaciones normalmente
       orgProvider.cargarOrganizaciones().then((_) {
         if (!mounted) return;
         int? orgId;
@@ -552,6 +619,7 @@ class _FormularioUsuarioState extends State<_FormularioUsuario> {
   }
 
   Future<void> _guardar() async {
+    // 1. Validaciones de campos obligatorios (ya las tenías)
     if (_nombreCtrl.text.trim().isEmpty ||
         _apellidoCtrl.text.trim().isEmpty ||
         _emailCtrl.text.trim().isEmpty) {
@@ -559,16 +627,23 @@ class _FormularioUsuarioState extends State<_FormularioUsuario> {
       return;
     }
 
+    // 2. Validación de contraseña (ya la tenías)
     if (!_esEdicion && _passwordCtrl.text.trim().isEmpty) {
       _snack('La contraseña es obligatoria', Colors.red);
       return;
     }
 
-    if (_orgSeleccionada == null) {
-      _snack('Selecciona una organización', Colors.red);
+    // 3. NUEVA VALIDACIÓN DE SEGURIDAD PARA ROLES
+    // Aquí es donde la debes colocar:
+    if (_rolSeleccionado == _rolSuperAdmin && !_creadorEsSuperAdmin) {
+      _snack(
+        'No tienes permisos para asignar el rol de Super Admin',
+        Colors.red,
+      );
       return;
     }
 
+    // 4. Continuar con el resto de la lógica...
     setState(() => _guardando = true);
 
     final provider = Provider.of<UsuarioProvider>(context, listen: false);
@@ -576,6 +651,8 @@ class _FormularioUsuarioState extends State<_FormularioUsuario> {
     final depIdParaGuardar = _depSeleccionado == _sinDepartamento
         ? null
         : _depSeleccionado;
+
+    final esRolSuperAdmin = _rolSeleccionado == _rolSuperAdmin;
 
     final usuario = UsuarioModel(
       idUsuario: _esEdicion ? widget.usuarioEditar!.idUsuario : null,
@@ -591,10 +668,12 @@ class _FormularioUsuarioState extends State<_FormularioUsuario> {
       ultimoLogin: DateTime.now().toIso8601String(),
       fechaCreacion: DateTime.now().toIso8601String().substring(0, 10),
       rol: {'idRol': _rolSeleccionado},
-      organizacion: {'idOrganizacion': _orgSeleccionada},
-      departamento: depIdParaGuardar != null
-          ? {'idDepartamento': depIdParaGuardar}
-          : null,
+      organizacion: esRolSuperAdmin
+          ? null
+          : {'idOrganizacion': _orgSeleccionada},
+      departamento: esRolSuperAdmin || depIdParaGuardar == null
+          ? null
+          : {'idDepartamento': depIdParaGuardar},
     );
 
     final ok = _esEdicion
@@ -715,89 +794,138 @@ class _FormularioUsuarioState extends State<_FormularioUsuario> {
               ),
             ),
             const SizedBox(height: 12),
-            const _SelectorLabel(
-              icono: Icons.business_outlined,
-              label: 'Organización *',
-            ),
-            const SizedBox(height: 8),
-            orgProvider.isLoading
-                ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
-                : _DropdownField<int>(
-                    keyCampo: const Key('adminOrganizacionDropdown'),
-                    value: _orgSeleccionada,
-                    hint: 'Selecciona organización',
-                    items: orgProvider.organizaciones
-                        .map(
-                          (o) => DropdownMenuItem<int>(
-                            value: o['idOrganizacion'] as int,
-                            child: Text(o['nombre'] as String),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (v) {
-                      setState(() {
-                        _orgSeleccionada = v;
-                        _depSeleccionado = _sinDepartamento;
-                      });
+            if (_rolSeleccionado != _rolSuperAdmin) ...[
+              const _SelectorLabel(
+                icono: Icons.business_outlined,
+                label: 'Organización *',
+              ),
+              const SizedBox(height: 8),
+              if (_creadorEsSuperAdmin || _esEdicion)
+                orgProvider.isLoading
+                    ? const Center(
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : _DropdownField<int>(
+                        keyCampo: const Key('adminOrganizacionDropdown'),
+                        value: _orgSeleccionada,
+                        hint: 'Selecciona organización',
+                        items: orgProvider.organizaciones
+                            .map(
+                              (o) => DropdownMenuItem<int>(
+                                value: o['idOrganizacion'] as int,
+                                child: Text(o['nombre'] as String),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (v) {
+                          setState(() {
+                            _orgSeleccionada = v;
+                            _depSeleccionado = _sinDepartamento;
+                          });
 
-                      if (v != null) {
-                        Provider.of<DepartamentoProvider>(
-                          context,
-                          listen: false,
-                        ).cargarPorOrganizacion(v);
-                      }
-                    },
+                          if (v != null) {
+                            Provider.of<DepartamentoProvider>(
+                              context,
+                              listen: false,
+                            ).cargarPorOrganizacion(v);
+                          }
+                        },
+                      )
+              else
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.blue.withOpacity(0.3)),
                   ),
-            const SizedBox(height: 12),
-            const _SelectorLabel(
-              icono: Icons.work_outline,
-              label: 'Departamento',
-            ),
-            const SizedBox(height: 8),
-            _orgSeleccionada == null
-                ? Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade50,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.grey.shade300),
-                    ),
-                    child: const Text(
-                      'Selecciona primero una organización',
-                      style: TextStyle(fontSize: 14, color: Colors.grey),
-                    ),
-                  )
-                : depProvider.isLoading
-                ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
-                : _DropdownField<int>(
-                    keyCampo: const Key('adminDepartamentoDropdown'),
-                    value:
-                        depProvider.departamentos.any(
-                          (d) => d.idDepartamento == _depSeleccionado,
-                        )
-                        ? _depSeleccionado
-                        : _sinDepartamento,
-                    hint: 'Sin departamento asignado',
-                    items: [
-                      const DropdownMenuItem<int>(
-                        value: _sinDepartamento,
+                  child: const Row(
+                    children: [
+                      Icon(Icons.business, size: 18, color: Colors.blue),
+                      SizedBox(width: 8),
+                      Expanded(
                         child: Text(
-                          'Sin departamento',
-                          style: TextStyle(color: Colors.grey),
-                        ),
-                      ),
-                      ...depProvider.departamentos.map(
-                        (d) => DropdownMenuItem<int>(
-                          value: d.idDepartamento,
-                          child: Text(d.nombre),
+                          'Se asignará automáticamente tu organización',
+                          style: TextStyle(fontSize: 12, color: Colors.blue),
                         ),
                       ),
                     ],
-                    onChanged: (v) => setState(
-                      () => _depSeleccionado = v ?? _sinDepartamento,
-                    ),
                   ),
-            const SizedBox(height: 12),
+                ),
+              const SizedBox(height: 12),
+              const _SelectorLabel(
+                icono: Icons.work_outline,
+                label: 'Departamento',
+              ),
+              const SizedBox(height: 8),
+              _orgSeleccionada == null
+                  ? Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade50,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.grey.shade300),
+                      ),
+                      child: const Text(
+                        'Selecciona primero una organización',
+                        style: TextStyle(fontSize: 14, color: Colors.grey),
+                      ),
+                    )
+                  : depProvider.isLoading
+                  ? const Center(
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : _DropdownField<int>(
+                      keyCampo: const Key('adminDepartamentoDropdown'),
+                      value:
+                          depProvider.departamentos.any(
+                            (d) => d.idDepartamento == _depSeleccionado,
+                          )
+                          ? _depSeleccionado
+                          : _sinDepartamento,
+                      hint: 'Sin departamento asignado',
+                      items: [
+                        const DropdownMenuItem<int>(
+                          value: _sinDepartamento,
+                          child: Text(
+                            'Sin departamento',
+                            style: TextStyle(color: Colors.grey),
+                          ),
+                        ),
+                        ...depProvider.departamentos.map(
+                          (d) => DropdownMenuItem<int>(
+                            value: d.idDepartamento,
+                            child: Text(d.nombre),
+                          ),
+                        ),
+                      ],
+                      onChanged: (v) => setState(
+                        () => _depSeleccionado = v ?? _sinDepartamento,
+                      ),
+                    ),
+              const SizedBox(height: 12),
+            ] else
+              Container(
+                padding: const EdgeInsets.all(14),
+                margin: const EdgeInsets.only(bottom: 12),
+                decoration: BoxDecoration(
+                  color: Colors.purple.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.purple.withOpacity(0.3)),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.public, size: 18, color: Colors.purple),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'El Super Admin no pertenece a una organización específica y puede ver todo el sistema.',
+                        style: TextStyle(fontSize: 12, color: Colors.purple),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             const Text(
               'Rol *',
               style: TextStyle(
@@ -807,7 +935,9 @@ class _FormularioUsuarioState extends State<_FormularioUsuario> {
               ),
             ),
             const SizedBox(height: 8),
-            Row(
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
               children: [
                 _RolChip(
                   keyCampo: const Key('adminRolUsuarioChip'),
@@ -815,7 +945,6 @@ class _FormularioUsuarioState extends State<_FormularioUsuario> {
                   seleccionado: _rolSeleccionado == 2,
                   onTap: () => setState(() => _rolSeleccionado = 2),
                 ),
-                const SizedBox(width: 10),
                 _RolChip(
                   keyCampo: const Key('adminRolAdminChip'),
                   label: 'Admin',
@@ -823,6 +952,16 @@ class _FormularioUsuarioState extends State<_FormularioUsuario> {
                   onTap: () => setState(() => _rolSeleccionado = 1),
                   color: Colors.blue,
                 ),
+
+                if (_creadorEsSuperAdmin)
+                  _RolChip(
+                    keyCampo: const Key('adminRolSuperAdminChip'),
+                    label: 'Super Admin',
+                    seleccionado: _rolSeleccionado == _rolSuperAdmin,
+                    onTap: () =>
+                        setState(() => _rolSeleccionado = _rolSuperAdmin),
+                    color: Colors.purple,
+                  ),
               ],
             ),
             const SizedBox(height: 24),

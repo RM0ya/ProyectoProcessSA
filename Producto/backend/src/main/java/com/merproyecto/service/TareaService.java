@@ -22,4 +22,9 @@ public interface TareaService {
     List<Tarea> findByEstado(String estado);
 
     List<Tarea> findTareasVencidas();
+
+    List<Tarea> findByOrganizacion(Integer idOrganizacion);
+
+
+    long contarTareasCreadasHoy(Integer idUsuario);
 }

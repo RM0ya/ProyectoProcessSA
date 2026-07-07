@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../../data/models/proceso_model.dart';
+import '../../../data/models/estado_model.dart';
 import '../../../data/services/proceso_service.dart';
+import '../../../data/services/estado_service.dart';
+import '../../../data/providers/usuario_provider.dart';
 
 class ProcesosScreen extends StatefulWidget {
   const ProcesosScreen({super.key});
@@ -9,18 +13,47 @@ class ProcesosScreen extends StatefulWidget {
   State<ProcesosScreen> createState() => _ProcesosScreenState();
 }
 
-class _ProcesosScreenState extends State<ProcesosScreen> {
-  final ProcesoService _service = ProcesoService();
-  late Future<List<ProcesoModel>> _futureProcesos;
+class _ProcesosScreenState extends State<ProcesosScreen>
+    with SingleTickerProviderStateMixin {
+  late Future<List<ProcesoModel>> _futureProcesos = Future.value([]);
+  TabController? _tabController;
 
   @override
   void initState() {
     super.initState();
-    _cargarProcesos();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        final usuarioProvider = context.read<UsuarioProvider>();
+        final esGestor =
+            usuarioProvider.esAdmin || usuarioProvider.esSuperAdmin;
+
+        setState(() {
+          _tabController = TabController(length: esGestor ? 2 : 1, vsync: this);
+          _cargarProcesos();
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _tabController?.dispose();
+    super.dispose();
   }
 
   void _cargarProcesos() {
-    _futureProcesos = _service.getAll();
+    final usuarioProvider = context.read<UsuarioProvider>();
+    final service = ProcesoService(token: usuarioProvider.token);
+    final idOrganizacion =
+        usuarioProvider.usuarioLogueado?.organizacion?['idOrganizacion'];
+
+    if (idOrganizacion != null) {
+      // El backend ya filtra: Usuario normal recibe solo activos,
+      // Admin/SuperAdmin reciben todo incluyendo completados.
+      _futureProcesos = service.getByOrganizacion(idOrganizacion as int);
+    } else {
+      _futureProcesos = Future.value([]);
+    }
   }
 
   Future<void> _refrescar() async {
@@ -29,9 +62,15 @@ class _ProcesosScreenState extends State<ProcesosScreen> {
     });
   }
 
+  bool _estaCompletado(ProcesoModel proceso) {
+    return (proceso.nombreEstado ?? '').toLowerCase() == 'completada';
+  }
+
   Future<bool> _eliminarProceso(int id) async {
     try {
-      await _service.delete(id);
+      final usuarioProvider = context.read<UsuarioProvider>();
+      final service = ProcesoService(token: usuarioProvider.token);
+      await service.delete(id);
       await _refrescar();
       return true;
     } catch (e) {
@@ -39,7 +78,7 @@ class _ProcesosScreenState extends State<ProcesosScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error al eliminar proceso: $e'),
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
           backgroundColor: Colors.red,
         ),
       );
@@ -48,24 +87,84 @@ class _ProcesosScreenState extends State<ProcesosScreen> {
     }
   }
 
-  Color _colorPorFecha(String fechaLimite) {
-    final fecha = DateTime.tryParse(fechaLimite);
-    if (fecha == null) return Colors.blue;
+  Future<void> _cambiarEstado(ProcesoModel proceso) async {
+    final usuarioProvider = context.read<UsuarioProvider>();
+    final estadoService = EstadoService(token: usuarioProvider.token);
+    final procesoService = ProcesoService(token: usuarioProvider.token);
 
-    final hoy = DateTime.now();
-    if (fecha.isBefore(hoy)) return Colors.red;
-    if (fecha.difference(hoy).inDays <= 7) return Colors.orange;
-    return Colors.green;
+    List<EstadoModel> estados;
+    try {
+      estados = await estadoService.getAll();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error al cargar estados: $e')));
+      return;
+    }
+
+    // Solo mostramos los 3 estados relevantes para procesos.
+    final estadosValidos = estados
+        .where(
+          (e) =>
+              ['Activo', 'En revisión', 'Completada'].contains(e.nombreEstado),
+        )
+        .toList();
+
+    if (!mounted) return;
+
+    final nuevoEstado = await showModalBottomSheet<EstadoModel>(
+      context: context,
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: estadosValidos
+              .map(
+                (e) => ListTile(
+                  title: Text(e.nombreEstado),
+                  onTap: () => Navigator.pop(context, e),
+                ),
+              )
+              .toList(),
+        ),
+      ),
+    );
+
+    if (nuevoEstado == null) return;
+
+    try {
+      await procesoService.updateEstado(
+        proceso.idProceso!,
+        nuevoEstado.idEstado!,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Estado actualizado a "${nuevoEstado.nombreEstado}"'),
+          backgroundColor: Colors.green,
+        ),
+      );
+      await _refrescar();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
-  String _estadoPorFecha(String fechaLimite) {
-    final fecha = DateTime.tryParse(fechaLimite);
-    if (fecha == null) return 'En curso';
-
-    final hoy = DateTime.now();
-    if (fecha.isBefore(hoy)) return 'Vencido';
-    if (fecha.difference(hoy).inDays <= 7) return 'En riesgo';
-    return 'En curso';
+  Color _colorPorEstado(String? nombreEstado) {
+    switch (nombreEstado) {
+      case 'Completada':
+        return Colors.green;
+      case 'En revisión':
+        return Colors.orange;
+      default:
+        return Colors.blue;
+    }
   }
 
   void _confirmarEliminar(ProcesoModel proceso) {
@@ -76,24 +175,14 @@ class _ProcesosScreenState extends State<ProcesosScreen> {
         content: Text('¿Deseas eliminar "${proceso.nombre}"?'),
         actions: [
           TextButton(
-            key: const Key('cancelarEliminarProcesoButton'),
             onPressed: () => Navigator.pop(context),
             child: const Text('Cancelar'),
           ),
           ElevatedButton(
-            key: const Key('confirmarEliminarProcesoButton'),
             onPressed: () async {
               Navigator.pop(context);
 
-              if (proceso.idProceso == null) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('No se pudo identificar el proceso'),
-                    backgroundColor: Colors.red,
-                  ),
-                );
-                return;
-              }
+              if (proceso.idProceso == null) return;
 
               final ok = await _eliminarProceso(proceso.idProceso!);
 
@@ -128,162 +217,174 @@ class _ProcesosScreenState extends State<ProcesosScreen> {
     ).then((_) => _refrescar());
   }
 
+  Widget _tarjetaProceso(ProcesoModel proceso, int index, bool esGestor) {
+    final estado = proceso.nombreEstado ?? 'Activo';
+    final color = _colorPorEstado(estado);
+
+    return GestureDetector(
+      key: Key('procesoCard_$index'),
+      onTap: esGestor ? () => _abrirFormulario(proceso: proceso) : null,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.grey.shade200),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    proceso.nombre,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                _Badge(label: estado, color: color),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              proceso.descripcionProceso,
+              style: const TextStyle(fontSize: 12, color: Colors.black54),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                const Icon(Icons.calendar_today, size: 14, color: Colors.grey),
+                const SizedBox(width: 5),
+                Text(
+                  '${proceso.fechaInicio} → ${proceso.fechaLimite}',
+                  style: const TextStyle(fontSize: 11, color: Colors.grey),
+                ),
+                const Spacer(),
+                if (esGestor) ...[
+                  IconButton(
+                    icon: const Icon(Icons.flag_outlined, color: Colors.orange),
+                    tooltip: 'Cambiar estado',
+                    onPressed: () => _cambiarEstado(proceso),
+                  ),
+                  IconButton(
+                    key: Key('procesoEditarButton_$index'),
+                    icon: const Icon(Icons.edit, color: Color(0xFF185FA5)),
+                    onPressed: () => _abrirFormulario(proceso: proceso),
+                  ),
+                  IconButton(
+                    key: Key('procesoEliminarButton_$index'),
+                    icon: const Icon(Icons.delete_outline, color: Colors.red),
+                    onPressed: () => _confirmarEliminar(proceso),
+                  ),
+                ],
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final usuarioProvider = context.watch<UsuarioProvider>();
+    final esGestor = usuarioProvider.esAdmin || usuarioProvider.esSuperAdmin;
+
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
         title: const Text('Procesos', style: TextStyle(color: Colors.white)),
         backgroundColor: const Color(0xFF185FA5),
+        bottom: _tabController == null
+            ? null
+            : TabBar(
+                controller: _tabController,
+                indicatorColor: Colors.white,
+                labelColor: Colors.white,
+                unselectedLabelColor: Colors.white70,
+                tabs: esGestor
+                    ? const [Tab(text: 'Activos'), Tab(text: 'Historial')]
+                    : const [Tab(text: 'Activos')],
+              ),
       ),
-      body: FutureBuilder<List<ProcesoModel>>(
-        future: _futureProcesos,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
+      body: _tabController == null
+          ? const Center(child: CircularProgressIndicator())
+          : FutureBuilder<List<ProcesoModel>>(
+              future: _futureProcesos,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
 
-          if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
-          }
+                if (snapshot.hasError) {
+                  return Center(child: Text('Error: ${snapshot.error}'));
+                }
 
-          final procesos = snapshot.data ?? [];
+                final procesos = snapshot.data ?? [];
+                final activos = procesos
+                    .where((p) => !_estaCompletado(p))
+                    .toList();
+                final completados = procesos.where(_estaCompletado).toList();
 
-          if (procesos.isEmpty) {
-            return const Center(child: Text('No hay procesos registrados'));
-          }
-
-          return RefreshIndicator(
-            onRefresh: _refrescar,
-            child: Column(
-              children: [
-                Container(
-                  color: Colors.white,
-                  padding: const EdgeInsets.all(16),
-                  child: Row(
-                    children: [
-                      _ResumenChip(
-                        label: 'Total',
-                        valor: '${procesos.length}',
-                        color: const Color(0xFF185FA5),
-                      ),
-                      const SizedBox(width: 10),
-                      _ResumenChip(
-                        label: 'Activos',
-                        valor:
-                            '${procesos.where((p) => _estadoPorFecha(p.fechaLimite) == 'En curso').length}',
-                        color: Colors.green,
-                      ),
-                      const SizedBox(width: 10),
-                      _ResumenChip(
-                        label: 'Riesgo',
-                        valor:
-                            '${procesos.where((p) => _estadoPorFecha(p.fechaLimite) == 'En riesgo').length}',
-                        color: Colors.orange,
-                      ),
-                    ],
-                  ),
-                ),
-                Expanded(
-                  child: ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: procesos.length,
-                    itemBuilder: (context, index) {
-                      final proceso = procesos[index];
-                      final estado = _estadoPorFecha(proceso.fechaLimite);
-                      final color = _colorPorFecha(proceso.fechaLimite);
-
-                      return GestureDetector(
-                        key: Key('procesoCard_$index'),
-                        onTap: () => _abrirFormulario(proceso: proceso),
-                        child: Container(
-                          margin: const EdgeInsets.only(bottom: 12),
+                Widget listaActivos = activos.isEmpty
+                    ? const Center(
+                        child: Text(
+                          'No hay procesos activos',
+                          style: TextStyle(color: Colors.grey),
+                        ),
+                      )
+                    : RefreshIndicator(
+                        onRefresh: _refrescar,
+                        child: ListView.builder(
                           padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(color: Colors.grey.shade200),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      proceso.nombre,
-                                      style: const TextStyle(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                  ),
-                                  _Badge(label: estado, color: color),
-                                ],
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                proceso.descripcionProceso,
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.black54,
-                                ),
-                              ),
-                              const SizedBox(height: 12),
-                              Row(
-                                children: [
-                                  const Icon(
-                                    Icons.calendar_today,
-                                    size: 14,
-                                    color: Colors.grey,
-                                  ),
-                                  const SizedBox(width: 5),
-                                  Text(
-                                    '${proceso.fechaInicio} → ${proceso.fechaLimite}',
-                                    style: const TextStyle(
-                                      fontSize: 11,
-                                      color: Colors.grey,
-                                    ),
-                                  ),
-                                  const Spacer(),
-                                  IconButton(
-                                    key: Key('procesoEditarButton_$index'),
-                                    icon: const Icon(
-                                      Icons.edit,
-                                      color: Color(0xFF185FA5),
-                                    ),
-                                    onPressed: () =>
-                                        _abrirFormulario(proceso: proceso),
-                                  ),
-                                  IconButton(
-                                    key: Key('procesoEliminarButton_$index'),
-                                    icon: const Icon(
-                                      Icons.delete_outline,
-                                      color: Colors.red,
-                                    ),
-                                    onPressed: () =>
-                                        _confirmarEliminar(proceso),
-                                  ),
-                                ],
-                              ),
-                            ],
+                          itemCount: activos.length,
+                          itemBuilder: (context, index) =>
+                              _tarjetaProceso(activos[index], index, esGestor),
+                        ),
+                      );
+
+                if (!esGestor) {
+                  return listaActivos;
+                }
+
+                Widget listaHistorial = completados.isEmpty
+                    ? const Center(
+                        child: Text(
+                          'No hay procesos completados todavía',
+                          style: TextStyle(color: Colors.grey),
+                        ),
+                      )
+                    : RefreshIndicator(
+                        onRefresh: _refrescar,
+                        child: ListView.builder(
+                          padding: const EdgeInsets.all(16),
+                          itemCount: completados.length,
+                          itemBuilder: (context, index) => _tarjetaProceso(
+                            completados[index],
+                            index + 1000,
+                            esGestor,
                           ),
                         ),
                       );
-                    },
-                  ),
-                ),
-              ],
+
+                return TabBarView(
+                  controller: _tabController,
+                  children: [listaActivos, listaHistorial],
+                );
+              },
             ),
-          );
-        },
-      ),
-      floatingActionButton: FloatingActionButton(
-        key: const Key('nuevoProcesoButton'),
-        backgroundColor: const Color(0xFF185FA5),
-        onPressed: () => _abrirFormulario(),
-        child: const Icon(Icons.add, color: Colors.white),
-      ),
+      floatingActionButton: esGestor
+          ? FloatingActionButton(
+              key: const Key('nuevoProcesoButton'),
+              backgroundColor: const Color(0xFF185FA5),
+              onPressed: () => _abrirFormulario(),
+              child: const Icon(Icons.add, color: Colors.white),
+            )
+          : null,
     );
   }
 }
@@ -299,8 +400,6 @@ class CrearEditarProcesoScreen extends StatefulWidget {
 }
 
 class _CrearEditarProcesoScreenState extends State<CrearEditarProcesoScreen> {
-  final ProcesoService _service = ProcesoService();
-
   final _nombreController = TextEditingController();
   final _descripcionController = TextEditingController();
   final _fechaInicioController = TextEditingController();
@@ -360,6 +459,12 @@ class _CrearEditarProcesoScreenState extends State<CrearEditarProcesoScreen> {
     setState(() => _guardando = true);
 
     try {
+      final usuarioProvider = context.read<UsuarioProvider>();
+      final service = ProcesoService(token: usuarioProvider.token);
+      final idOrganizacion =
+          usuarioProvider.usuarioLogueado?.organizacion?['idOrganizacion']
+              as int?;
+
       final proceso = ProcesoModel(
         idProceso: widget.proceso?.idProceso,
         nombre: _nombreController.text.trim(),
@@ -369,12 +474,14 @@ class _CrearEditarProcesoScreenState extends State<CrearEditarProcesoScreen> {
         fechaCreacion:
             widget.proceso?.fechaCreacion ??
             DateTime.now().toIso8601String().split('T').first,
+        idOrganizacion: widget.proceso?.idOrganizacion ?? idOrganizacion,
+        idEstado: widget.proceso?.idEstado ?? 1,
       );
 
       if (_editando) {
-        await _service.update(widget.proceso!.idProceso!, proceso);
+        await service.update(widget.proceso!.idProceso!, proceso);
       } else {
-        await _service.create(proceso);
+        await service.create(proceso);
       }
 
       if (!mounted) return;
@@ -384,7 +491,7 @@ class _CrearEditarProcesoScreenState extends State<CrearEditarProcesoScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error al guardar proceso: $e'),
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
           backgroundColor: Colors.red,
         ),
       );
@@ -500,47 +607,6 @@ class _CrearEditarProcesoScreenState extends State<CrearEditarProcesoScreen> {
                   ),
                 ),
               ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ResumenChip extends StatelessWidget {
-  final String label;
-  final String valor;
-  final Color color;
-
-  const _ResumenChip({
-    required this.label,
-    required this.valor,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(9),
-        ),
-        child: Column(
-          children: [
-            Text(
-              valor,
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: color,
-              ),
-            ),
-            Text(
-              label,
-              style: const TextStyle(fontSize: 10, color: Colors.grey),
             ),
           ],
         ),

@@ -26,17 +26,13 @@ class _SesionesAdminScreenState extends State<SesionesAdminScreen> {
   }
 
   void _cargarSesiones() {
+    // 1. Obtenemos solo el token del provider
     final token = Provider.of<UsuarioProvider>(context, listen: false).token;
 
-    final dio = Dio(
-      BaseOptions(
-        baseUrl: 'http://10.0.2.2:8080/api',
-        headers: {if (token != null) 'Authorization': 'Bearer $token'},
-      ),
-    );
-
     setState(() {
-      _futureSesiones = SesionService(dio).listarTodas();
+      // 2. Usamos el servicio correctamente, pasando el token (que es String?)
+      // Esto coincide con el constructor: SesionService(String? token)
+      _futureSesiones = SesionService(token).listarTodas();
     });
   }
 

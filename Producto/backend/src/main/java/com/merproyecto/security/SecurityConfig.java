@@ -25,7 +25,6 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-
         http
                 .csrf(csrf -> csrf.disable())
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
@@ -33,46 +32,26 @@ public class SecurityConfig {
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
                 .authorizeHttpRequests(auth -> auth
-
-                        // LOGIN Y REGISTRO
+                        // 1. Endpoints públicos
                         .requestMatchers(
                                 "/api/usuarios/login",
                                 "/api/usuarios/login-google",
                                 "/api/usuarios/crear",
                                 "/api/usuarios/registro-google",
-                                "/api/reportes/**"
+                                "/api/sesiones/iniciar",
+                                "/api/sesiones/cerrar"
                         ).permitAll()
 
-                        // USUARIOS
-                        .requestMatchers(
-                                "/api/usuarios",
-                                "/api/usuarios/**"
-                        ).permitAll()
+                        // 2. Endpoints protegidos por roles (Específicos primero)
+                        .requestMatchers("/api/organizaciones/**").hasAuthority("ROLE_SUPERADMIN")
+                        .requestMatchers("/api/reportes/**").permitAll()
+                        .requestMatchers("/api/sesiones/**").hasAnyAuthority("ROLE_SUPERADMIN", "ROLE_ADMIN")
+                        .requestMatchers("/api/usuarios/**").hasAnyAuthority("ROLE_SUPERADMIN", "ROLE_ADMIN")
+                        .requestMatchers("/api/procesos/**").hasAnyAuthority("ROLE_SUPERADMIN", "ROLE_ADMIN", "ROLE_USUARIO")
+                        .requestMatchers("/api/tareas/**").hasAnyAuthority("ROLE_SUPERADMIN", "ROLE_ADMIN", "ROLE_USUARIO")
+                        .requestMatchers("/api/departamentos/**").hasAnyAuthority("ROLE_SUPERADMIN", "ROLE_ADMIN")
 
-                        // ORGANIZACIONES
-                        .requestMatchers(
-                                "/api/organizaciones",
-                                "/api/organizaciones/**"
-                        ).permitAll()
-
-                        // DEPARTAMENTOS
-                        .requestMatchers(
-                                "/api/departamentos",
-                                "/api/departamentos/**"
-                        ).permitAll()
-
-                        // PROCESOS
-                        .requestMatchers(
-                                "/api/procesos",
-                                "/api/procesos/**"
-                        ).permitAll()
-
-                        // TAREAS
-                        .requestMatchers(
-                                "/api/tareas",
-                                "/api/tareas/**"
-                        ).permitAll()
-
+                        // 3. TODO lo demás requiere autenticación (Siempre al final)
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
@@ -87,19 +66,14 @@ public class SecurityConfig {
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
-
         CorsConfiguration config = new CorsConfiguration();
-
         config.setAllowedOriginPatterns(List.of("*"));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);
 
-        UrlBasedCorsConfigurationSource source =
-                new UrlBasedCorsConfigurationSource();
-
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
-
         return source;
     }
 }

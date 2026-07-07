@@ -123,7 +123,11 @@ class _LoginScreenState extends State<LoginScreen>
     setState(() => _cargandoLogin = false);
 
     if (ok) {
-      Navigator.pushReplacementNamed(context, '/dashboard');
+      final esSuperAdmin = provider.esSuperAdmin;
+      Navigator.pushReplacementNamed(
+        context,
+        esSuperAdmin ? '/super_admin' : '/dashboard',
+      );
     } else {
       _mostrarError('Correo o contraseña incorrectos');
     }
@@ -175,8 +179,12 @@ class _LoginScreenState extends State<LoginScreen>
       if (!mounted) return;
 
       if (ok) {
-        print('CP-05 OK: login Google exitoso, navega a dashboard');
-        Navigator.pushReplacementNamed(context, '/dashboard');
+        final esSuperAdmin = provider.esSuperAdmin;
+        print('CP-05 OK: login Google exitoso, navega según rol');
+        Navigator.pushReplacementNamed(
+          context,
+          esSuperAdmin ? '/super_admin' : '/dashboard',
+        );
       } else {
         print('CP-05 ERROR: backend rechazó login Google');
         _mostrarError('Error al iniciar sesión con Google');

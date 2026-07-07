@@ -7,13 +7,15 @@ import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 @Entity
 @Table(name = "USUARIO")
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
+@Getter @Setter @NoArgsConstructor @AllArgsConstructor
+@ToString(exclude = {"sesiones", "rol", "organizacion", "departamento"})
+@EqualsAndHashCode(exclude = {"sesiones", "rol", "organizacion", "departamento"})
 public class Usuario {
 
     @Id
@@ -34,7 +36,7 @@ public class Usuario {
     private String emailUsuario;
 
     @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
-    @Column(name = "password", nullable = false, length = 255)
+    @Column(name = "password", nullable = false, columnDefinition = "TEXT")
     private String password;
 
     @Column(name = "intentos_fallidos")
@@ -54,7 +56,7 @@ public class Usuario {
     private Rol rol;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "id_organizacion", nullable = false)
+    @JoinColumn(name = "id_organizacion", nullable = true)
     private Organizacion organizacion;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -63,4 +65,8 @@ public class Usuario {
 
     @Column(name = "telefono", length = 12)
     private String telefono;
+
+    @JsonIgnore
+    @OneToMany(mappedBy = "usuario", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<Sesion> sesiones = new ArrayList<>();
 }

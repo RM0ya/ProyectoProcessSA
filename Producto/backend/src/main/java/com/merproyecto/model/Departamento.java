@@ -7,9 +7,9 @@ import lombok.*;
 @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 @Entity
 @Table(name = "DEPARTAMENTO")
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
+@Getter @Setter @NoArgsConstructor @AllArgsConstructor
+@ToString(exclude = {"organizacion"})
+@EqualsAndHashCode(exclude = {"organizacion"})
 public class Departamento {
 
     @Id
@@ -23,9 +23,7 @@ public class Departamento {
     @Column(name = "descripcion", nullable = false, length = 100)
     private String descripcion;
 
-    // ── NUEVO: cada departamento pertenece a una organización ──
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "id_organizacion", nullable = false)
-    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private Organizacion organizacion;
 }
